@@ -1,0 +1,302 @@
+/**
+ * Brax Mobile UI - Responsive 9x9 Game Board Component (React Native SVG)
+ * Renders the 9x9 Brax grid, colored orthogonal edges, starting rank labels 1..7,
+ * 81 touch-target intersection nodes, pieces, and valid move highlights.
+ */
+
+import React, { useMemo } from 'react';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
+import { useGameStore } from './useGameStore.ts';
+import { PieceRenderer } from './PieceRenderer.tsx';
+import { CANONICAL_BRAX_BOARD } from '../engine/board.ts';
+import { NodeCoord, Piece } from '../engine/types.ts';
+import { areCoordsEqual } from '../engine/geometry.ts';
+
+export interface BraxBoardProps {
+  size?: number;
+}
+
+export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
+  const windowDims = useWindowDimensions();
+  const availableWidth = size ?? Math.min(windowDims.width - 24, 480);
+
+  const {
+    gameState,
+    selectedPieceId,
+    validMoves,
+    selectPiece,
+    selectDestination,
+  } = useGameStore();
+
+  // Responsive board geometry layout
+  const boardSize = availableWidth;
+  const padding = boardSize * 0.085;
+  const innerGridSize = boardSize - 2 * padding;
+  const cellSize = innerGridSize / 8;
+  const pieceRadius = Math.max(10, cellSize * 0.38);
+
+  // Helper: map grid coordinate (0..8, 0..8) to pixel coordinates (cx, cy)
+  const coordToPx = (coord: NodeCoord) => {
+    return {
+      cx: padding + coord.x * cellSize,
+      cy: padding + coord.y * cellSize,
+    };
+  };
+
+  // Map of valid move destinations for quick lookup
+  const destMap = useMemo(() => {
+    const map = new Map<string, { to: NodeCoord; isCapture: boolean }>();
+    for (const move of validMoves) {
+      const key = `${move.to.x},${move.to.y}`;
+      const targetPiece = gameState.board[key];
+      const isCapture = Boolean(targetPiece && targetPiece.color !== gameState.turn);
+      map.set(key, { to: move.to, isCapture });
+    }
+    return map;
+  }, [validMoves, gameState.board, gameState.turn]);
+
+  // Set of threatened piece IDs (if under Brax or threat)
+  const threatenedIds = useMemo(() => {
+    if (gameState.activeBrax && gameState.activeBrax.victimColor === gameState.turn) {
+      return new Set(gameState.activeBrax.threatenedPieceIds);
+    }
+    return new Set<string>();
+  }, [gameState.activeBrax, gameState.turn]);
+
+  const allEdges = useMemo(() => CANONICAL_BRAX_BOARD.getAllEdges(), []);
+
+  // 81 intersection grid coordinates
+  const allNodes: NodeCoord[] = useMemo(() => {
+    const nodes: NodeCoord[] = [];
+    for (let y = 0; y < 9; y++) {
+      for (let x = 0; x < 9; x++) {
+        nodes.push({ x, y });
+      }
+    }
+    return nodes;
+  }, []);
+
+  return (
+    <View style={[styles.container, { width: boardSize, height: boardSize }]}>
+      <Svg width={boardSize} height={boardSize}>
+        {/* Background Board Surface */}
+        <Rect
+          x={2}
+          y={2}
+          width={boardSize - 4}
+          height={boardSize - 4}
+          rx={16}
+          fill="#FFFDF7"
+          stroke="#E2E8F0"
+          strokeWidth={2}
+        />
+
+        {/* Orthogonal Colored Edges (RED or BLUE) */}
+        {allEdges.map((edge) => {
+          const fromPt = coordToPx(edge.from);
+          const toPt = coordToPx(edge.to);
+          const isRedEdge = edge.color === 'RED';
+          const strokeColor = isRedEdge ? '#EF4444' : '#3B82F6';
+
+          return (
+            <G key={`edge-${edge.from.x},${edge.from.y}-${edge.to.x},${edge.to.y}`}>
+              <Line
+                x1={fromPt.cx}
+                y1={fromPt.cy}
+                x2={toPt.cx}
+                y2={toPt.cy}
+                stroke={strokeColor}
+                strokeWidth={3}
+                strokeLinecap="round"
+              />
+            </G>
+          );
+        })}
+
+        {/* Starting Ranks Labels (1..7 on Nodes B..H along y=0 and y=8) */}
+        {[1, 2, 3, 4, 5, 6, 7].map((num) => {
+          const topPt = coordToPx({ x: num, y: 0 });
+          const bottomPt = coordToPx({ x: num, y: 8 });
+
+          return (
+            <G key={`rank-label-${num}`}>
+              {/* Top edge (Red rank, y=0) subtle starting number label */}
+              <SvgText
+                x={topPt.cx}
+                y={topPt.cy - pieceRadius - 4}
+                textAnchor="middle"
+                fontSize={10}
+                fontWeight="bold"
+                fill="#94A3B8"
+              >
+                {num}
+              </SvgText>
+
+              {/* Bottom edge (Blue rank, y=8) subtle starting number label */}
+              <SvgText
+                x={bottomPt.cx}
+                y={bottomPt.cy + pieceRadius + 12}
+                textAnchor="middle"
+                fontSize={10}
+                fontWeight="bold"
+                fill="#94A3B8"
+              >
+                {num}
+              </SvgText>
+            </G>
+          );
+        })}
+
+        {/* 81 Intersection Node Dots (Delicate Background Reference Points) */}
+        {allNodes.map((coord) => {
+          const pt = coordToPx(coord);
+          return (
+            <G key={`dot-${coord.x},${coord.y}`}>
+              <Circle
+                cx={pt.cx}
+                cy={pt.cy}
+                r={2.5}
+                fill="#CBD5E1"
+              />
+            </G>
+          );
+        })}
+
+        {/* Pieces Layer */}
+        {(Object.entries(gameState.board) as [string, Piece | null][]).map(([key, piece]) => {
+          if (!piece) return null;
+          const [x, y] = key.split(',').map(Number);
+          const pt = coordToPx({ x, y });
+          const isSelected = piece.id === selectedPieceId;
+          const isThreatened = threatenedIds.has(piece.id);
+          const isCaptureTarget = destMap.get(key)?.isCapture ?? false;
+
+          const isBraxRestricted =
+            gameState.activeBrax !== null &&
+            gameState.activeBrax.victimColor === gameState.turn &&
+            piece.color === gameState.turn &&
+            !threatenedIds.has(piece.id);
+
+          return (
+            <PieceRenderer
+              key={`piece-${piece.id}`}
+              piece={piece}
+              cx={pt.cx}
+              cy={pt.cy}
+              radius={pieceRadius}
+              isSelected={isSelected}
+              isThreatened={isThreatened}
+              isCaptureTarget={isCaptureTarget}
+              isBraxRestricted={isBraxRestricted}
+              onPress={() => selectPiece(piece.id)}
+            />
+          );
+        })}
+
+        {/* Valid Move Destination Highlights Layer */}
+        {Array.from(destMap.entries()).map(([key, dest]) => {
+          const pt = coordToPx(dest.to);
+
+          return (
+            <G
+              key={`dest-${key}`}
+              onPress={() => selectDestination(dest.to)}
+            >
+              {/* Invisible Large Hit Area */}
+              <Circle
+                cx={pt.cx}
+                cy={pt.cy}
+                r={cellSize * 0.46}
+                fill="transparent"
+              />
+
+              {dest.isCapture ? (
+                // Capture Highlight: Red reticle ring overlaying target
+                <G>
+                  <Circle
+                    cx={pt.cx}
+                    cy={pt.cy}
+                    r={pieceRadius * 1.32}
+                    fill="none"
+                    stroke="#EF4444"
+                    strokeWidth={2.5}
+                    strokeDasharray="4,3"
+                  />
+                  <Circle
+                    cx={pt.cx}
+                    cy={pt.cy}
+                    r={pieceRadius * 0.9}
+                    fill="#EF4444"
+                    fillOpacity={0.25}
+                  />
+                </G>
+              ) : (
+                // Empty Destination Highlight: Emerald translucent circle
+                <G>
+                  <Circle
+                    cx={pt.cx}
+                    cy={pt.cy}
+                    r={cellSize * 0.32}
+                    fill="none"
+                    stroke="#10B981"
+                    strokeWidth={2.5}
+                  />
+                  <Circle
+                    cx={pt.cx}
+                    cy={pt.cy}
+                    r={cellSize * 0.12}
+                    fill="#10B981"
+                  />
+                </G>
+              )}
+            </G>
+          );
+        })}
+
+        {/* Touch Target Layer for 81 Intersections (Guarantees responsive touch everywhere) */}
+        {allNodes.map((coord) => {
+          const pt = coordToPx(coord);
+          const key = `${coord.x},${coord.y}`;
+          const isDest = destMap.has(key);
+          const hasPiece = gameState.board[key] !== null;
+
+          // Only add empty node clicker if not destination (destinations already have hit targets)
+          if (isDest || hasPiece) return null;
+
+          return (
+            <G key={`touch-${coord.x},${coord.y}`}>
+              <Circle
+                cx={pt.cx}
+                cy={pt.cy}
+                r={cellSize * 0.42}
+                fill="transparent"
+                onPress={() => {
+                  // If user clicks an empty node while a piece is selected, check or unselect
+                  if (selectedPieceId) {
+                    selectDestination(coord);
+                  }
+                }}
+              />
+            </G>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+});

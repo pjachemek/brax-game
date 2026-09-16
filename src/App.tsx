@@ -19,6 +19,7 @@ import { BoardView } from './components/BoardView.tsx';
 import { TestRunnerView } from './components/TestRunnerView.tsx';
 import { ScenariosPanel } from './components/ScenariosPanel.tsx';
 import { ArchitectureView } from './components/ArchitectureView.tsx';
+import { MobileSimulatorView } from './components/MobileSimulatorView.tsx';
 import {
   Swords,
   RotateCcw,
@@ -32,10 +33,11 @@ import {
   Layers,
   ShieldCheck,
   Flag,
+  Smartphone,
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'board' | 'scenarios' | 'tests' | 'architecture'>('board');
+  const [activeTab, setActiveTab] = useState<'board' | 'mobile' | 'scenarios' | 'tests' | 'architecture'>('mobile');
   const [state, setState] = useState<GameState>(() => defaultBraxEngine.initGame('two_player'));
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [callBraxNextMove, setCallBraxNextMove] = useState<boolean>(true);
@@ -224,7 +226,19 @@ export default function App() {
               }`}
             >
               <Swords className="w-3.5 h-3.5" />
-              <span>Plansza</span>
+              <span>Plansza (Web)</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('mobile')}
+              id="tab-mobile"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                activeTab === 'mobile'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+              <span className="font-bold text-blue-900">Mobile (React Native)</span>
             </button>
             <button
               onClick={() => setActiveTab('scenarios')}
@@ -585,6 +599,13 @@ export default function App() {
                 </ul>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB: MOBILE SIMULATOR & CODE */}
+        {activeTab === 'mobile' && (
+          <div className="max-w-7xl mx-auto">
+            <MobileSimulatorView />
           </div>
         )}
 

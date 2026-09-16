@@ -9,6 +9,8 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        'react-native': 'react-native-web',
+        'react-native-svg': path.resolve(__dirname, 'src/mobile/svg-shim.tsx'),
       },
     },
     server: {

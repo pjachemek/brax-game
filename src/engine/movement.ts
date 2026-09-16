@@ -1,0 +1,239 @@
+/**
+ * Brax Rules Engine - Movement Validation & Path Finding
+ * Calculates distance 1 and distance 2 moves adhering to official Brax rules.
+ */
+
+import {
+  NodeCoord,
+  Piece,
+  PlayerColor,
+  MoveAction,
+  MovePath,
+  ValidationResult,
+  GameState,
+} from './types.ts';
+import {
+  areCoordsEqual,
+  coordToKey,
+  getOrthogonalNeighbors,
+  isValidCoord,
+} from './geometry.ts';
+import { BoardGraph, CANONICAL_BRAX_BOARD } from './board.ts';
+
+/**
+ * Finds the coordinate of a piece by ID in the given game state board.
+ */
+export function findPieceCoord(
+  state: GameState,
+  pieceId: string
+): { coord: NodeCoord; piece: Piece } | null {
+  for (const [key, piece] of Object.entries(state.board)) {
+    if (piece && piece.id === pieceId) {
+      const parts = key.split(',');
+      return {
+        coord: { x: parseInt(parts[0], 10), y: parseInt(parts[1], 10) },
+        piece,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Retrieves piece located at a specific coordinate, or null if empty.
+ */
+export function getPieceAt(state: GameState, coord: NodeCoord): Piece | null {
+  if (!isValidCoord(coord)) return null;
+  const key = coordToKey(coord);
+  return state.board[key] ?? null;
+}
+
+/**
+ * Finds all legal distance 1 and distance 2 movement paths for a piece from its current location,
+ * ignoring turn restrictions and Brax forcing (raw kinematic legality).
+ */
+export function getRawLegalPathsForPiece(
+  state: GameState,
+  piece: Piece,
+  fromCoord: NodeCoord,
+  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+): MovePath[] {
+  const paths: MovePath[] = [];
+  const pieceColor = piece.color;
+
+  // -------------------------------------------------------------
+  // 1. Distance 1 moves
+  // Can move along ANY connected segment (own or opponent's color).
+  // Target node cannot contain a friendly piece (empty or enemy).
+  // -------------------------------------------------------------
+  const neighbors = boardGraph.getNeighbors(fromCoord);
+  for (const neighbor of neighbors) {
+    const destPiece = getPieceAt(state, neighbor.coord);
+    if (!destPiece || destPiece.color !== pieceColor) {
+      paths.push({
+        p0: fromCoord,
+        p2: neighbor.coord,
+        distance: 1,
+      });
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 2. Distance 2 moves
+  // Allowed ONLY when BOTH consecutive segments are of piece's OWN color.
+  // Path: P0 -> P1 -> P2.
+  // - P1 connected to P0 via segment of pieceColor.
+  // - P1 MUST BE EMPTY (cannot jump over friendly or enemy piece).
+  // - P2 connected to P1 via segment of pieceColor.
+  // - P2 != P0 (no backtracking to starting node).
+  // - P2 cannot contain a friendly piece (can be empty or enemy piece).
+  // -------------------------------------------------------------
+  const step1Candidates = boardGraph.getNeighborsByColor(fromCoord, pieceColor);
+
+  for (const p1 of step1Candidates) {
+    // Crucial rule: Intermediate node P1 MUST BE EMPTY
+    const pieceAtP1 = getPieceAt(state, p1);
+    if (pieceAtP1 !== null) {
+      // Node is occupied; jumping over any piece is strictly forbidden!
+      continue;
+    }
+
+    const step2Candidates = boardGraph.getNeighborsByColor(p1, pieceColor);
+    for (const p2 of step2Candidates) {
+      // Must not return to start node
+      if (areCoordsEqual(p2, fromCoord)) {
+        continue;
+      }
+
+      // Destination cannot contain a friendly piece
+      const destPiece = getPieceAt(state, p2);
+      if (!destPiece || destPiece.color !== pieceColor) {
+        // Prevent duplicate paths to the same P2 with identical intermediate P1
+        const alreadyExists = paths.some(
+          (path) =>
+            path.distance === 2 &&
+            path.p1 &&
+            areCoordsEqual(path.p1, p1) &&
+            areCoordsEqual(path.p2, p2)
+        );
+
+        if (!alreadyExists) {
+          paths.push({
+            p0: fromCoord,
+            p1,
+            p2,
+            distance: 2,
+          });
+        }
+      }
+    }
+  }
+
+  return paths;
+}
+
+/**
+ * Validates a proposed move action against board rules, piece ownership, and Brax enforcement.
+ */
+export function validateMoveAction(
+  state: GameState,
+  move: MoveAction,
+  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+): ValidationResult {
+  if (state.result !== null) {
+    return { valid: false, reason: 'Game has already ended.' };
+  }
+
+  const pieceInfo = findPieceCoord(state, move.pieceId);
+  if (!pieceInfo) {
+    return { valid: false, reason: `Piece with ID "${move.pieceId}" not found on board.` };
+  }
+
+  const { piece, coord: fromCoord } = pieceInfo;
+
+  // Verify turn ownership
+  if (piece.color !== state.turn) {
+    return {
+      valid: false,
+      reason: `It is ${state.turn}'s turn, but piece belongs to ${piece.color}.`,
+    };
+  }
+
+  // Verify Brax enforcement (victim must move one of the threatened pieces)
+  if (state.activeBrax !== null && state.activeBrax.victimColor === state.turn) {
+    const isThreatenedPiece = state.activeBrax.threatenedPieceIds.includes(piece.id);
+    if (!isThreatenedPiece) {
+      return {
+        valid: false,
+        reason: `Brax was called! You must move one of the threatened pieces (${state.activeBrax.threatenedPieceIds.join(
+          ', '
+        )}).`,
+      };
+    }
+  }
+
+  // Validate target coordinate
+  if (!isValidCoord(move.to)) {
+    return { valid: false, reason: 'Destination coordinate is out of bounds.' };
+  }
+
+  if (areCoordsEqual(fromCoord, move.to)) {
+    return { valid: false, reason: 'Cannot move to the current piece location.' };
+  }
+
+  // Destination cannot contain a friendly piece
+  const destPiece = getPieceAt(state, move.to);
+  if (destPiece && destPiece.color === piece.color) {
+    return { valid: false, reason: 'Destination is occupied by your own piece.' };
+  }
+
+  // Find matching legal paths for this destination
+  const allLegalPaths = getRawLegalPathsForPiece(state, piece, fromCoord, boardGraph);
+  const matchingPaths = allLegalPaths.filter((path) => areCoordsEqual(path.p2, move.to));
+
+  if (matchingPaths.length === 0) {
+    // Check if intermediate node blockage was the reason
+    const dx = Math.abs(fromCoord.x - move.to.x);
+    const dy = Math.abs(fromCoord.y - move.to.y);
+    const distManhattan = dx + dy;
+
+    if (distManhattan === 2) {
+      return {
+        valid: false,
+        reason:
+          'No legal path to destination. A 2-step move requires both segments to be your color with intermediate node empty (no jumping) and destination not your piece.',
+      };
+    }
+
+    return { valid: false, reason: 'Destination is not reachable via any legal move path.' };
+  }
+
+  // If player specified an intermediate node (mid), find path matching that mid
+  let chosenPath: MovePath;
+  if (move.mid) {
+    const specificPath = matchingPaths.find(
+      (p) => p.distance === 2 && p.p1 && areCoordsEqual(p.p1, move.mid!)
+    );
+    if (!specificPath) {
+      return {
+        valid: false,
+        reason: `Specified intermediate node (${move.mid.x},${move.mid.y}) is not a valid intermediate step for this move.`,
+      };
+    }
+    chosenPath = specificPath;
+  } else {
+    // Prefer distance 1 if available, otherwise take the first valid distance 2 path
+    chosenPath = matchingPaths[0];
+  }
+
+  return {
+    valid: true,
+    normalizedMove: {
+      pieceId: move.pieceId,
+      to: move.to,
+      mid: chosenPath.p1,
+      callBrax: Boolean(move.callBrax),
+    },
+    path: chosenPath,
+  };
+}

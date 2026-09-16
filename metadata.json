@@ -1,0 +1,6 @@
+{
+  "name": "Brax Rules Engine",
+  "description": "Bezstanowy, modularny silnik reguł klasycznej gry planszowej Brax (F.B. Denham) z obsługą geometrii 9x9, mechaniki Braxowania i interaktywną planszą.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

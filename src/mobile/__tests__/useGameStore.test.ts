@@ -146,14 +146,14 @@ describe('useGameStore (React Native Mobile State)', () => {
   it('handles capture and updates graveyard', () => {
     const testState = createEmptyTestState();
     testState.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
-    testState.board['2,1'] = { id: 'ENEMY_B', color: 'BLUE', side: 'PLAIN' };
+    testState.board['0,1'] = { id: 'ENEMY_B', color: 'BLUE', side: 'PLAIN' };
 
     useGameStore.getState().loadCustomState(testState);
     useGameStore.getState().selectPiece('R1');
-    useGameStore.getState().selectDestination({ x: 2, y: 1 });
+    useGameStore.getState().selectDestination({ x: 0, y: 1 });
 
     const storeAfter = useGameStore.getState();
-    expect(storeAfter.gameState.board['2,1']?.id).toBe('R1');
+    expect(storeAfter.gameState.board['0,1']?.id).toBe('R1');
     expect(storeAfter.gameState.capturedPieces.RED.length).toBe(1);
     expect(storeAfter.gameState.capturedPieces.RED[0].id).toBe('ENEMY_B');
     expect(storeAfter.statusMessage).toContain('Zbicie');

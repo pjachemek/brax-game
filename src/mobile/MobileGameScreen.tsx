@@ -19,6 +19,11 @@ import { BraxBoard } from './BraxBoard.tsx';
 import { BraxModal } from './BraxModal.tsx';
 
 export const MobileGameScreen: React.FC = () => {
+  // The board must size itself to the space this screen actually gets, not to the
+  // window: when this screen is embedded in the web simulator's phone frame, the
+  // window is far wider than the frame and a window-sized board overflows it.
+  const [boardWidth, setBoardWidth] = React.useState<number | null>(null);
+
   const {
     gameState,
     selectedPieceId,
@@ -142,8 +147,11 @@ export const MobileGameScreen: React.FC = () => {
         </View>
 
         {/* Main Responsive Game Board */}
-        <View style={styles.boardWrapper}>
-          <BraxBoard />
+        <View
+          style={styles.boardWrapper}
+          onLayout={(e) => setBoardWidth(e.nativeEvent.layout.width)}
+        >
+          {boardWidth !== null && <BraxBoard size={boardWidth} />}
         </View>
 
         {/* Selected Piece Floating Indicator */}
@@ -380,8 +388,14 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   boardWrapper: {
+    // Matches the width rules of the banners above so the board lines up with them,
+    // and reserves its square footprint up front so nothing jumps once measured.
+    width: '100%',
+    maxWidth: 480,
+    aspectRatio: 1,
     marginVertical: 4,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   selectionBar: {
     width: '100%',

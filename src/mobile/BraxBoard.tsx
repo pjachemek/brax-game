@@ -11,7 +11,7 @@ import { useGameStore } from './useGameStore.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
 import { CANONICAL_BRAX_BOARD } from '../engine/board.ts';
 import { NodeCoord, Piece } from '../engine/types.ts';
-import { areCoordsEqual } from '../engine/geometry.ts';
+import { BOARD_SIZE, areCoordsEqual } from '../engine/geometry.ts';
 
 export interface BraxBoardProps {
   size?: number;
@@ -29,18 +29,30 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     selectDestination,
   } = useGameStore();
 
-  // Responsive board geometry layout
+  // Responsive board geometry layout.
+  //
+  // The padding is derived from what actually has to fit inside it rather than from
+  // a flat percentage: a band at each edge for the rank labels, plus room beyond it
+  // for a piece sitting on an outermost rank. A flat percentage left the labels to
+  // land on the board's own border at smaller sizes, striking the digits through.
   const boardSize = availableWidth;
-  const padding = boardSize * 0.085;
+  const labelFontSize = Math.max(9, boardSize * 0.028);
+  const labelInset = 6; // gap between a label and the board's outer edge
+  const labelBand = labelFontSize + labelInset + 2;
+  const padding = labelBand + boardSize * 0.045;
   const innerGridSize = boardSize - 2 * padding;
   const cellSize = innerGridSize / 8;
-  const pieceRadius = Math.max(10, cellSize * 0.38);
+  // Capped so a piece on an outermost rank can never reach into the label band.
+  const pieceRadius = Math.max(9, Math.min(cellSize * 0.38, padding - labelBand));
 
-  // Helper: map grid coordinate (0..8, 0..8) to pixel coordinates (cx, cy)
+  // Helper: map grid coordinate (0..8, 0..8) to pixel coordinates (cx, cy).
+  // The board is drawn like the official artwork: row 9 at the top, row 1 at the
+  // bottom. Engine coordinates run the other way (y = 0 is row 1, RED's home rank),
+  // so the vertical axis is inverted here — the single place orientation is decided.
   const coordToPx = (coord: NodeCoord) => {
     return {
       cx: padding + coord.x * cellSize,
-      cy: padding + coord.y * cellSize,
+      cy: padding + (BOARD_SIZE - 1 - coord.y) * cellSize,
     };
   };
 
@@ -114,31 +126,34 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
           );
         })}
 
-        {/* Starting Ranks Labels (1..7 on Nodes B..H along y=0 and y=8) */}
+        {/* Starting Ranks Labels (1..7 on Nodes B..H along both home ranks).
+            BLUE's home rank (y=8) is drawn at the top, RED's (y=0) at the bottom.
+            Both are anchored to the board's edge rather than offset from the node,
+            so they sit in the reserved label band at any board size. SVG text is
+            positioned by its baseline, hence the +labelFontSize at the top. */}
         {[1, 2, 3, 4, 5, 6, 7].map((num) => {
-          const topPt = coordToPx({ x: num, y: 0 });
-          const bottomPt = coordToPx({ x: num, y: 8 });
+          const { cx } = coordToPx({ x: num, y: 0 });
 
           return (
             <G key={`rank-label-${num}`}>
-              {/* Top edge (Red rank, y=0) subtle starting number label */}
+              {/* Top edge (Blue home rank) subtle starting number label */}
               <SvgText
-                x={topPt.cx}
-                y={topPt.cy - pieceRadius - 4}
+                x={cx}
+                y={labelInset + labelFontSize}
                 textAnchor="middle"
-                fontSize={10}
+                fontSize={labelFontSize}
                 fontWeight="bold"
                 fill="#94A3B8"
               >
                 {num}
               </SvgText>
 
-              {/* Bottom edge (Blue rank, y=8) subtle starting number label */}
+              {/* Bottom edge (Red home rank) subtle starting number label */}
               <SvgText
-                x={bottomPt.cx}
-                y={bottomPt.cy + pieceRadius + 12}
+                x={cx}
+                y={boardSize - labelInset}
                 textAnchor="middle"
-                fontSize={10}
+                fontSize={labelFontSize}
                 fontWeight="bold"
                 fill="#94A3B8"
               >

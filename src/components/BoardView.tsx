@@ -14,6 +14,7 @@ import {
   ThreatenedPieceInfo,
 } from '../engine/types.ts';
 import {
+  BOARD_SIZE,
   COLUMN_LABELS,
   ROW_LABELS,
   coordToKey,
@@ -49,10 +50,15 @@ export const BoardView: React.FC<BoardViewProps> = ({
   const cellSize = 56;
   const boardPixelSize = padding * 2 + cellSize * 8; // 52*2 + 448 = 552
 
+  // The board is drawn the way the official artwork is drawn: row 9 at the top,
+  // row 1 at the bottom. Engine coordinates run the other way (y = 0 is row 1,
+  // RED's home rank), so the vertical axis is inverted here. Every other piece of
+  // geometry in this component goes through coordToPx, so this is the only place
+  // the orientation is decided.
   function coordToPx(coord: NodeCoord): { x: number; y: number } {
     return {
       x: padding + coord.x * cellSize,
-      y: padding + coord.y * cellSize,
+      y: padding + (BOARD_SIZE - 1 - coord.y) * cellSize,
     };
   }
 
@@ -160,7 +166,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
 
           {/* Row labels (1-9) */}
           {ROW_LABELS.map((row, idx) => {
-            const y = padding + idx * cellSize;
+            const y = coordToPx({ x: 0, y: idx }).y;
             return (
               <React.Fragment key={`row-${row}`}>
                 <text
@@ -183,19 +189,21 @@ export const BoardView: React.FC<BoardViewProps> = ({
             );
           })}
 
-          {/* Starting Rank Diamond Indicators (Rows 1 and 9 for inner columns B-H) */}
+          {/* Goal Rank Diamond Indicators, as on the artwork: RED's diamonds sit on
+              row 9 (drawn at the top) and BLUE's on row 1, each on the far rank from
+              that player's home, for inner columns B-H. */}
           {[1, 2, 3, 4, 5, 6, 7].map((x) => {
-            const topPt = coordToPx({ x, y: 0 });
-            const botPt = coordToPx({ x, y: 8 });
+            const redGoal = coordToPx({ x, y: BOARD_SIZE - 1 });
+            const blueGoal = coordToPx({ x, y: 0 });
             const d = 10;
             return (
               <g key={`diamond-${x}`} opacity="0.45">
                 <polygon
-                  points={`${topPt.x},${topPt.y - d} ${topPt.x + d},${topPt.y} ${topPt.x},${topPt.y + d} ${topPt.x - d},${topPt.y}`}
+                  points={`${redGoal.x},${redGoal.y - d} ${redGoal.x + d},${redGoal.y} ${redGoal.x},${redGoal.y + d} ${redGoal.x - d},${redGoal.y}`}
                   fill="#DC2626"
                 />
                 <polygon
-                  points={`${botPt.x},${botPt.y - d} ${botPt.x + d},${botPt.y} ${botPt.x},${botPt.y + d} ${botPt.x - d},${botPt.y}`}
+                  points={`${blueGoal.x},${blueGoal.y - d} ${blueGoal.x + d},${blueGoal.y} ${blueGoal.x},${blueGoal.y + d} ${blueGoal.x - d},${blueGoal.y}`}
                   fill="#2563EB"
                 />
               </g>

@@ -62,18 +62,66 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     expect(state.board['8,8']).toBeNull();
   });
 
+  it('colors every segment exactly as the official board artwork does', () => {
+    // Transcribed from "Brax board -vI.svg". Rows run bottom-up in engine
+    // coordinates (y = 0 is algebraic row 1, RED's home rank), so this table is the
+    // artwork read from its bottom edge upwards.
+    const HORIZONTAL = [
+      'BBRRBBRR', // row 1
+      'RBRBRBRB', // row 2
+      'RRBBRRBB', // row 3
+      'RBRBRBRB', // row 4
+      'BBRRBBRR', // row 5
+      'RBRBRBRB', // row 6
+      'RRBBRRBB', // row 7
+      'RBRBRBRB', // row 8
+      'BBRRBBRR', // row 9
+    ];
+    const VERTICAL = [
+      'RRBRRRBRR', // row 1 -> 2
+      'RBBBRBBBR', // row 2 -> 3
+      'BRRRBRRRB', // row 3 -> 4
+      'BBRBBBRBB', // row 4 -> 5
+      'RRBRRRBRR', // row 5 -> 6
+      'RBBBRBBBR', // row 6 -> 7
+      'BRRRBRRRB', // row 7 -> 8
+      'BBRBBBRBB', // row 8 -> 9
+    ];
+
+    for (let y = 0; y < 9; y++) {
+      for (let x = 0; x < 8; x++) {
+        const expected = HORIZONTAL[y][x] === 'R' ? 'RED' : 'BLUE';
+        const actual = CANONICAL_BRAX_BOARD.getEdgeColor({ x, y }, { x: x + 1, y });
+        expect(`h ${x},${y} = ${actual}`).toBe(`h ${x},${y} = ${expected}`);
+      }
+    }
+
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 9; x++) {
+        const expected = VERTICAL[y][x] === 'R' ? 'RED' : 'BLUE';
+        const actual = CANONICAL_BRAX_BOARD.getEdgeColor({ x, y }, { x, y: y + 1 });
+        expect(`v ${x},${y} = ${actual}`).toBe(`v ${x},${y} = ${expected}`);
+      }
+    }
+
+    // The artwork splits the 144 segments evenly between the two players.
+    const edges = CANONICAL_BRAX_BOARD.getAllEdges();
+    expect(edges.length).toBe(144);
+    expect(edges.filter((e) => e.color === 'RED').length).toBe(72);
+  });
+
   it('1. permits move of 2 along own color with 90-degree turn', () => {
     const state = createEmptyTestState();
 
     // From (1,0) [B1]:
-    // (1,0) -> (1,1) vertical edge is RED (x=1, minY=0: (1+0)%2 === 1 -> RED)
-    // (1,1) -> (2,1) horizontal edge is RED (minX=1, y=1: (1+1)%2 === 0 -> RED)
-    // Both segments are RED, forming a 90-degree turn: (1,0) -> (1,1) -> (2,1).
+    // (1,0) -> (1,1) vertical edge is RED (odd column, even minY -> RED)
+    // (1,1) -> (0,1) horizontal edge is RED (odd row, even minX -> RED)
+    // Both segments are RED, forming a 90-degree turn: (1,0) -> (1,1) -> (0,1).
     const redPiece: Piece = { id: 'R1', color: 'RED', side: 'PLAIN' };
     state.board['1,0'] = redPiece;
 
     const validMoves = engine.getValidMoves(state, 'R1');
-    const move90Deg = validMoves.find((m) => m.to.x === 2 && m.to.y === 1);
+    const move90Deg = validMoves.find((m) => m.to.x === 0 && m.to.y === 1);
 
     expect(move90Deg).toBeDefined();
     expect(move90Deg?.mid).toEqual({ x: 1, y: 1 });
@@ -81,7 +129,7 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     // Validate move explicitly
     const moveAction: MoveAction = {
       pieceId: 'R1',
-      to: { x: 2, y: 1 },
+      to: { x: 0, y: 1 },
       mid: { x: 1, y: 1 },
     };
     const validation = engine.validateMove(state, moveAction);
@@ -92,7 +140,7 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     const nextState = engine.applyMove(state, moveAction);
     expect(nextState.board['1,0']).toBeNull();
     expect(nextState.board['1,1']).toBeNull(); // intermediate was not placed
-    expect(nextState.board['2,1']?.id).toBe('R1');
+    expect(nextState.board['0,1']?.id).toBe('R1');
     expect(nextState.turn).toBe('BLUE');
   });
 
@@ -105,15 +153,15 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     // Place an obstacle piece (friendly or enemy) at intermediate node (1,1)
     state.board['1,1'] = { id: 'BLOCKER', color: 'BLUE', side: 'PLAIN' };
 
-    // Valid moves for R1 should NOT contain (2,1) via (1,1)
+    // Valid moves for R1 should NOT contain (0,1) via (1,1)
     const validMoves = engine.getValidMoves(state, 'R1');
-    const jumpAttempt = validMoves.find((m) => m.to.x === 2 && m.to.y === 1);
+    const jumpAttempt = validMoves.find((m) => m.to.x === 0 && m.to.y === 1);
     expect(jumpAttempt).toBeUndefined();
 
     // Explicitly validating a jump must return valid: false
     const blockedAction: MoveAction = {
       pieceId: 'R1',
-      to: { x: 2, y: 1 },
+      to: { x: 0, y: 1 },
       mid: { x: 1, y: 1 },
     };
     const validation = engine.validateMove(state, blockedAction);
@@ -191,12 +239,12 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     // RED at (1,0), intermediate (1,1) is EMPTY
     state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
 
-    // BLUE enemy piece waiting at destination P2 (2,1)
-    state.board['2,1'] = { id: 'ENEMY_B', color: 'BLUE', side: 'PLAIN' };
+    // BLUE enemy piece waiting at destination P2 (0,1)
+    state.board['0,1'] = { id: 'ENEMY_B', color: 'BLUE', side: 'PLAIN' };
 
     const captureAction: MoveAction = {
       pieceId: 'R1',
-      to: { x: 2, y: 1 },
+      to: { x: 0, y: 1 },
       mid: { x: 1, y: 1 },
     };
 
@@ -208,8 +256,8 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     // Verify board changes
     expect(stateAfterCapture.board['1,0']).toBeNull();
     expect(stateAfterCapture.board['1,1']).toBeNull();
-    expect(stateAfterCapture.board['2,1']?.id).toBe('R1');
-    expect(stateAfterCapture.board['2,1']?.color).toBe('RED');
+    expect(stateAfterCapture.board['0,1']?.id).toBe('R1');
+    expect(stateAfterCapture.board['0,1']?.color).toBe('RED');
 
     // Verify captured piece records
     expect(stateAfterCapture.capturedPieces.RED.length).toBe(1);

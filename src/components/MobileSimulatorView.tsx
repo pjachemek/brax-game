@@ -85,7 +85,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     title: 'Responsive Board (BraxBoard.tsx)',
     filename: 'src/mobile/BraxBoard.tsx',
     language: 'tsx',
-    desc: 'Renderowanie siatki 9x9 w react-native-svg, krawędzi ortogonalnych (RED/BLUE), etykiet startowych 1..7 oraz 81 punktów dotykowych.',
+    desc: 'Renderowanie siatki 9x9 w react-native-svg, krawędzi ortogonalnych (RED/BLUE), etykiet startowych 1..7 oraz 81 punktów dotykowych. Rozmiar planszy pochodzi z pomiaru kontenera (onLayout), nie z szerokości okna.',
     code: `import React, { useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
@@ -95,6 +95,8 @@ import { CANONICAL_BRAX_BOARD } from '../engine/board.ts';
 
 export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
   const windowDims = useWindowDimensions();
+  // \`size\` is the width measured by the parent's onLayout; the window is only a
+  // fallback, so the board fits its container instead of overflowing it.
   const boardSize = size ?? Math.min(windowDims.width - 24, 480);
   const padding = boardSize * 0.085;
   const cellSize = (boardSize - 2 * padding) / 8;
@@ -110,9 +112,9 @@ export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
         {allEdges.map(edge => (
           <Line
             x1={padding + edge.from.x * cellSize}
-            y1={padding + edge.from.y * cellSize}
+            y1={padding + (8 - edge.from.y) * cellSize}
             x2={padding + edge.to.x * cellSize}
-            y2={padding + edge.to.y * cellSize}
+            y2={padding + (8 - edge.to.y) * cellSize}
             stroke={edge.color === 'RED' ? '#EF4444' : '#3B82F6'}
             strokeWidth={3}
           />

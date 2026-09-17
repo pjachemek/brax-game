@@ -76,35 +76,57 @@ export function edgeKey(a: NodeCoord, b: NodeCoord): string {
 /**
  * Canonical Brax color assignment for orthogonal segments.
  *
- * In Denham's official Brax board, every horizontal line alternates RED and BLUE,
- * and every vertical line alternates RED and BLUE.
+ * Transcribed from the official board artwork ("Brax board -vI.svg"), which draws
+ * the colors as two interlocking families:
  *
- * - Horizontal edge between (x, y) and (x+1, y):
- *     RED if (x + y) % 2 === 0, else BLUE
- * - Vertical edge between (x, y) and (x, y+1):
- *     RED if (x + y) % 2 === 1, else BLUE
+ *  - Around every odd/odd intersection, a BLUE elbow (up + right) and a RED elbow
+ *    (left + down). These carry all segments that touch an odd column or odd row.
+ *  - Between the even/even intersections, long staircases of 2-unit segments whose
+ *    color flips with each even cell stepped over, in both directions.
  *
- * This provides every intersection with balanced connections and guarantees that
- * consecutive segments along the same color require a 90-degree turn.
+ * Coordinates here are engine coordinates, where y = 0 is algebraic row 1 (RED's
+ * home rank) and y = 8 is row 9 (BLUE's home rank). Note that the SVG is drawn with
+ * row 9 at the top, so its picture is this board flipped vertically.
+ *
+ * The result is NOT a simple (x + y) checkerboard: the horizontal rule depends on
+ * the parity of the row, and the vertical rule on the parity of the column.
  */
 export function getCanonicalEdgeColor(from: NodeCoord, to: NodeCoord): PlayerColor | null {
   const dx = Math.abs(from.x - to.x);
   const dy = Math.abs(from.y - to.y);
 
   // Must be strictly orthogonal neighbors (distance 1)
-  if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
-    if (dy === 0) {
-      // Horizontal segment
-      const minX = Math.min(from.x, to.x);
-      return (minX + from.y) % 2 === 0 ? 'RED' : 'BLUE';
-    } else {
-      // Vertical segment
-      const minY = Math.min(from.y, to.y);
-      return (from.x + minY) % 2 === 1 ? 'RED' : 'BLUE';
-    }
+  if (!((dx === 1 && dy === 0) || (dx === 0 && dy === 1))) {
+    return null;
   }
 
-  return null;
+  if (dy === 0) {
+    // Horizontal segment between (minX, y) and (minX + 1, y)
+    const minX = Math.min(from.x, to.x);
+    const y = from.y;
+
+    // Odd rows are the elbow family: RED reaches left out of the odd/odd node,
+    // BLUE reaches right, so the color alternates with the column.
+    if (y % 2 === 1) {
+      return minX % 2 === 0 ? 'RED' : 'BLUE';
+    }
+
+    // Even rows are the staircase family, flipping every 2 columns and every 2 rows.
+    return (Math.floor(minX / 2) + y / 2) % 2 === 1 ? 'RED' : 'BLUE';
+  }
+
+  // Vertical segment between (x, minY) and (x, minY + 1)
+  const minY = Math.min(from.y, to.y);
+  const x = from.x;
+
+  // Odd columns are the elbow family: BLUE reaches up out of the odd/odd node and
+  // RED reaches down, which in engine orientation makes RED the even-y segments.
+  if (x % 2 === 1) {
+    return minY % 2 === 0 ? 'RED' : 'BLUE';
+  }
+
+  // Even columns are the staircase family.
+  return (x / 2 + Math.floor(minY / 2)) % 2 === 0 ? 'RED' : 'BLUE';
 }
 
 /**

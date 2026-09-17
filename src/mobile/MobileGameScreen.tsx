@@ -1,7 +1,7 @@
 /**
  * Brax Mobile UI - Primary Screen Component (React Native)
- * Orchestrates the full mobile game view: header, scoreboard, Braxed restriction alerts,
- * responsive 9x9 board, interactive bottom controls, and the Brax action modal.
+ * Orchestrates the full mobile game view: header, scoreboard, a fixed-height status
+ * strip, the responsive 9x9 board, interactive bottom controls, and the Brax modal.
  */
 
 import React from 'react';
@@ -40,14 +40,6 @@ export const MobileGameScreen: React.FC = () => {
   const isRedTurn = gameState.turn === 'RED';
   const isGameOver = gameState.result !== null;
 
-  // Check if current player is under Brax enforcement
-  const isBraxed =
-    gameState.activeBrax !== null &&
-    gameState.activeBrax.victimColor === gameState.turn;
-  const braxThreatenedIds = isBraxed
-    ? gameState.activeBrax!.threatenedPieceIds
-    : [];
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
@@ -76,40 +68,50 @@ export const MobileGameScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Brax Enforcement Alert Banner (Required by prompt) */}
-        {isBraxed && (
-          <View style={styles.braxAlertBanner}>
-            <Text style={styles.braxAlertIcon}>⚠️</Text>
-            <View style={styles.braxAlertTextContainer}>
-              <Text style={styles.braxAlertTitle}>
-                You are Braxed! Move a threatened piece.
+        {/* Status Strip.
+            One slot of a fixed height, always mounted: errors, the current
+            selection and informational messages take turns in it. Banners that
+            appeared and disappeared used to push the board down and snap it back;
+            the board now stays put whatever the strip says. Brax enforcement is
+            shown on the board itself (halos on the pieces that may still move),
+            not here. */}
+        {/* <TouchableOpacity
+          style={[
+            styles.statusStrip,
+            errorMessage && styles.statusStripError,
+            !errorMessage && selectedPieceId && styles.statusStripSelected,
+          ]}
+          activeOpacity={errorMessage ? 0.8 : 1}
+          onPress={errorMessage ? dismissError : undefined}
+        >
+          {errorMessage ? (
+            <>
+              <Text style={[styles.statusStripText, styles.statusStripTextError]} numberOfLines={2}>
+                {errorMessage}
               </Text>
-              <Text style={styles.braxAlertSubtitle}>
-                Możesz poruszyć wyłącznie zagrożony pionek:{' '}
-                <Text style={styles.boldText}>{braxThreatenedIds.join(', ')}</Text>
+              <Text style={styles.errorDismiss}>✕</Text>
+            </>
+          ) : selectedPieceId ? (
+            <>
+              <Text style={[styles.statusStripText, styles.statusStripTextSelected]} numberOfLines={2}>
+                {statusMessage ?? (
+                  <>
+                    Wybrano pionek <Text style={styles.boldText}>{selectedPieceId}</Text> — dotknij
+                    pulsującego węzła docelowego.
+                  </>
+                )}
               </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Error Notification Banner */}
-        {errorMessage && (
-          <TouchableOpacity
-            style={styles.errorBanner}
-            activeOpacity={0.8}
-            onPress={dismissError}
-          >
-            <Text style={styles.errorText}>{errorMessage}</Text>
-            <Text style={styles.errorDismiss}>✕</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Informational Status Banner */}
-        {statusMessage && !errorMessage && !isBraxed && (
-          <View style={styles.statusBanner}>
-            <Text style={styles.statusText}>{statusMessage}</Text>
-          </View>
-        )}
+              <TouchableOpacity onPress={unselectPiece} style={styles.unselectBtn}>
+                <Text style={styles.unselectBtnText}>Odznacz</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={styles.statusStripText} numberOfLines={2}>
+              {statusMessage ??
+                `Dotknij swojego pionka (${isRedTurn ? 'czerwony' : 'niebieski'}), aby zobaczyć dostępne ruchy.`}
+            </Text>
+          )}
+        </TouchableOpacity> */}
 
         {/* Scoreboard & Captured Graveyard */}
         <View style={styles.scoreboard}>
@@ -153,18 +155,6 @@ export const MobileGameScreen: React.FC = () => {
         >
           {boardWidth !== null && <BraxBoard size={boardWidth} />}
         </View>
-
-        {/* Selected Piece Floating Indicator */}
-        {selectedPieceId && (
-          <View style={styles.selectionBar}>
-            <Text style={styles.selectionText}>
-              Wybrano pionek: <Text style={styles.boldText}>{selectedPieceId}</Text> (Dotknij węzła docelowego)
-            </Text>
-            <TouchableOpacity onPress={unselectPiece} style={styles.unselectBtn}>
-              <Text style={styles.unselectBtnText}>Odznacz</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* Bottom Game Controls */}
         <View style={styles.controlsRow}>
@@ -272,76 +262,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1E293B',
   },
-  braxAlertBanner: {
+  statusStrip: {
+    // Height is fixed on purpose: this slot is always on screen, so its content
+    // can change without moving the board or anything else below it.
     width: '100%',
     maxWidth: 480,
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1.5,
-    borderColor: '#F59E0B',
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  braxAlertIcon: {
-    fontSize: 22,
-    marginRight: 10,
-  },
-  braxAlertTextContainer: {
-    flex: 1,
-  },
-  braxAlertTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#92400E',
-  },
-  braxAlertSubtitle: {
-    fontSize: 12,
-    color: '#B45309',
-    marginTop: 2,
-  },
-  errorBanner: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: '#FEE2E2',
+    height: 48,
+    paddingHorizontal: 12,
+    backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: '#F87171',
+    borderColor: '#E2E8F0',
     borderRadius: 12,
-    padding: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-  errorText: {
-    fontSize: 12,
-    color: '#991B1B',
-    fontWeight: '600',
+  statusStripError: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#F87171',
+  },
+  statusStripSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  statusStripText: {
     flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  statusStripTextError: {
+    color: '#991B1B',
+  },
+  statusStripTextSelected: {
+    color: '#065F46',
   },
   errorDismiss: {
     fontSize: 14,
     color: '#991B1B',
     fontWeight: '700',
     marginLeft: 8,
-  },
-  statusBanner: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 10,
-    alignItems: 'center',
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#1E40AF',
-    fontWeight: '600',
-    textAlign: 'center',
   },
   scoreboard: {
     width: '100%',
@@ -396,25 +356,6 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  selectionBar: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  selectionText: {
-    fontSize: 12,
-    color: '#065F46',
-    flex: 1,
   },
   unselectBtn: {
     paddingHorizontal: 8,

@@ -9,6 +9,7 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
 import { useGameStore } from './useGameStore.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
+import { useFlash, usePulse } from './animations.ts';
 import { CANONICAL_BRAX_BOARD } from '../engine/board.ts';
 import { NodeCoord, Piece } from '../engine/types.ts';
 import { BOARD_SIZE, areCoordsEqual } from '../engine/geometry.ts';
@@ -25,6 +26,9 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     gameState,
     selectedPieceId,
     validMoves,
+    rejectedPieceId,
+    rejectionNonce,
+    targetHintNonce,
     selectPiece,
     selectDestination,
   } = useGameStore();
@@ -204,70 +208,24 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
               isThreatened={isThreatened}
               isCaptureTarget={isCaptureTarget}
               isBraxRestricted={isBraxRestricted}
+              shakeNonce={piece.id === rejectedPieceId ? rejectionNonce : 0}
               onPress={() => selectPiece(piece.id)}
             />
           );
         })}
 
-        {/* Valid Move Destination Highlights Layer */}
-        {Array.from(destMap.entries()).map(([key, dest]) => {
-          const pt = coordToPx(dest.to);
-
-          return (
-            <G
-              key={`dest-${key}`}
-              onPress={() => selectDestination(dest.to)}
-            >
-              {/* Invisible Large Hit Area */}
-              <Circle
-                cx={pt.cx}
-                cy={pt.cy}
-                r={cellSize * 0.46}
-                fill="transparent"
-              />
-
-              {dest.isCapture ? (
-                // Capture Highlight: Red reticle ring overlaying target
-                <G>
-                  <Circle
-                    cx={pt.cx}
-                    cy={pt.cy}
-                    r={pieceRadius * 1.32}
-                    fill="none"
-                    stroke="#EF4444"
-                    strokeWidth={2.5}
-                    strokeDasharray="4,3"
-                  />
-                  <Circle
-                    cx={pt.cx}
-                    cy={pt.cy}
-                    r={pieceRadius * 0.9}
-                    fill="#EF4444"
-                    fillOpacity={0.25}
-                  />
-                </G>
-              ) : (
-                // Empty Destination Highlight: Emerald translucent circle
-                <G>
-                  <Circle
-                    cx={pt.cx}
-                    cy={pt.cy}
-                    r={cellSize * 0.32}
-                    fill="none"
-                    stroke="#10B981"
-                    strokeWidth={2.5}
-                  />
-                  <Circle
-                    cx={pt.cx}
-                    cy={pt.cy}
-                    r={cellSize * 0.12}
-                    fill="#10B981"
-                  />
-                </G>
-              )}
-            </G>
-          );
-        })}
+        {/* Valid Move Destination Highlights Layer (pulsing) */}
+        <MoveTargetsLayer
+          destinations={Array.from(destMap.entries()).map(([key, dest]) => ({
+            key,
+            ...coordToPx(dest.to),
+            isCapture: dest.isCapture,
+            onPress: () => selectDestination(dest.to),
+          }))}
+          cellSize={cellSize}
+          pieceRadius={pieceRadius}
+          hintNonce={targetHintNonce}
+        />
 
         {/* Touch Target Layer for 81 Intersections (Guarantees responsive touch everywhere) */}
         {allNodes.map((coord) => {
@@ -298,6 +256,90 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
         })}
       </Svg>
     </View>
+  );
+};
+
+interface MoveTarget {
+  key: string;
+  cx: number;
+  cy: number;
+  isCapture: boolean;
+  onPress: () => void;
+}
+
+/**
+ * All valid-move markers, pulsing together off a single animation loop so that a
+ * selected piece announces its options without any layout-level banner. Kept as
+ * its own component so the pulse re-renders the markers, not the whole board.
+ */
+const MoveTargetsLayer: React.FC<{
+  destinations: MoveTarget[];
+  cellSize: number;
+  pieceRadius: number;
+  hintNonce: number;
+}> = ({ destinations, cellSize, pieceRadius, hintNonce }) => {
+  const phase = usePulse(destinations.length > 0);
+  const flash = useFlash(hintNonce);
+  // 0..1 triangle wave: a soft breathe rather than a hard blink.
+  const wave = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
+  // A mistaken tap beats the same markers harder for a moment instead of
+  // producing an error message.
+  const ringScale = 1 + wave * 0.22 + flash * 0.4;
+  const ringOpacity = Math.min(1, 0.55 + wave * 0.45 + flash);
+  const ringWidth = 2.5 + flash * 2;
+
+  return (
+    <G>
+      {destinations.map((dest) => (
+        <G key={`dest-${dest.key}`} onPress={dest.onPress}>
+          {/* Invisible Large Hit Area */}
+          <Circle cx={dest.cx} cy={dest.cy} r={cellSize * 0.46} fill="transparent" />
+
+          {dest.isCapture ? (
+            // Capture Highlight: Red reticle ring overlaying target
+            <G>
+              <Circle
+                cx={dest.cx}
+                cy={dest.cy}
+                r={pieceRadius * 1.32 * ringScale}
+                fill="none"
+                stroke="#EF4444"
+                strokeWidth={ringWidth}
+                strokeOpacity={ringOpacity}
+                strokeDasharray="4,3"
+              />
+              <Circle
+                cx={dest.cx}
+                cy={dest.cy}
+                r={pieceRadius * 0.9}
+                fill="#EF4444"
+                fillOpacity={0.15 + wave * 0.2}
+              />
+            </G>
+          ) : (
+            // Empty Destination Highlight: Emerald breathing circle
+            <G>
+              <Circle
+                cx={dest.cx}
+                cy={dest.cy}
+                r={cellSize * 0.32 * ringScale}
+                fill="none"
+                stroke="#10B981"
+                strokeWidth={ringWidth}
+                strokeOpacity={ringOpacity}
+              />
+              <Circle
+                cx={dest.cx}
+                cy={dest.cy}
+                r={cellSize * 0.12}
+                fill="#10B981"
+                fillOpacity={ringOpacity}
+              />
+            </G>
+          )}
+        </G>
+      ))}
+    </G>
   );
 };
 

@@ -14,6 +14,18 @@ import { areCoordsEqual } from '../engine/geometry.ts';
 export const useGameStore = create<GameStoreState>((set, get) => {
   const initialGameState = defaultBraxEngine.initGame('two_player');
 
+  /**
+   * Refuse an action and point the player at the piece responsible for it.
+   * The message still lands in the fixed-height status strip, but the primary
+   * feedback is the shake the board plays on `pieceId`.
+   */
+  const reject = (pieceId: string | null, patch: Partial<GameStoreState>) =>
+    set((state) => ({
+      ...patch,
+      rejectedPieceId: pieceId,
+      rejectionNonce: state.rejectionNonce + 1,
+    }));
+
   return {
     gameState: initialGameState,
     gameModeId: 'two_player',
@@ -23,6 +35,9 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     pendingMove: null,
     statusMessage: null,
     errorMessage: null,
+    rejectedPieceId: null,
+    rejectionNonce: 0,
+    targetHintNonce: 0,
     history: [],
     canUndo: false,
 
@@ -37,6 +52,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         pendingMove: null,
         statusMessage: null,
         errorMessage: null,
+        rejectedPieceId: null,
         history: [],
         canUndo: false,
       });
@@ -52,6 +68,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         pendingMove: null,
         statusMessage: null,
         errorMessage: null,
+        rejectedPieceId: null,
       });
     },
 
@@ -97,7 +114,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
 
         const myColor = gameState.turn === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
         const oppColor = piece.color === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
-        set({
+        reject(pieceId, {
           statusMessage: `To jest pionek przeciwnika (${pieceId} - ${oppColor}). Twoja tura: ${myColor}. Wybierz swój pionek.`,
           errorMessage: null,
         });
@@ -119,7 +136,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       const activeBrax = gameState.activeBrax;
       if (activeBrax && activeBrax.victimColor === gameState.turn) {
         if (!activeBrax.threatenedPieceIds.includes(pieceId)) {
-          set({
+          reject(pieceId, {
             errorMessage: `You are Braxed! Move a threatened piece (${activeBrax.threatenedPieceIds.join(
               ', '
             )}).`,
@@ -132,16 +149,24 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       // Fetch legal moves from the pure engine
       const legalMoves = defaultBraxEngine.getValidMoves(gameState, pieceId);
 
-      set({
+      const selection: Partial<GameStoreState> = {
         selectedPieceId: pieceId,
         validMoves: legalMoves,
-        turnPhase: 'PIECE_SELECTED',
+        turnPhase: 'PIECE_SELECTED' as TurnPhase,
         errorMessage: null,
         statusMessage:
           legalMoves.length === 0
             ? `Pionek ${pieceId} nie ma dostępnych legalnych ruchów w tej turze.`
             : null,
-      });
+      };
+
+      // A piece that is selectable but frozen gets the same shake as a refusal:
+      // nothing lights up on the board, so the tap would otherwise feel ignored.
+      if (legalMoves.length === 0) {
+        reject(pieceId, selection);
+      } else {
+        set(selection);
+      }
     },
 
     unselectPiece: () => {
@@ -161,7 +186,12 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       // Find candidate moves targeting this coordinate
       const matchingMoves = validMoves.filter((m) => areCoordsEqual(m.to, targetCoord));
       if (matchingMoves.length === 0) {
-        set({ errorMessage: 'Niedozwolony węzeł docelowy dla wybranego pionka.' });
+        // Not a refusal by the piece — the player simply aimed at the wrong node,
+        // so the board flashes where the legal targets actually are.
+        set((state) => ({
+          targetHintNonce: state.targetHintNonce + 1,
+          errorMessage: null,
+        }));
         return;
       }
 

@@ -7,6 +7,7 @@
 import React from 'react';
 import { G, Circle, Text as SvgText, Polygon } from 'react-native-svg';
 import { Piece } from '../engine/types.ts';
+import { useShakeOffset } from './animations.ts';
 
 export interface PieceRendererProps {
   piece: Piece;
@@ -17,6 +18,11 @@ export interface PieceRendererProps {
   isThreatened?: boolean;
   isCaptureTarget?: boolean;
   isBraxRestricted?: boolean;
+  /**
+   * Bumped by the store whenever this piece refused an action (wrong turn, Brax
+   * restriction, no legal moves). Every change replays the shake.
+   */
+  shakeNonce?: number;
   onPress?: () => void;
 }
 
@@ -29,8 +35,11 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
   isThreatened = false,
   isCaptureTarget = false,
   isBraxRestricted = false,
+  shakeNonce = 0,
   onPress,
 }) => {
+  const shakeOffset = useShakeOffset(shakeNonce, Math.max(4, radius * 0.45));
+  const isShaking = shakeOffset !== 0;
   const isRed = piece.color === 'RED';
   const fillColor = isRed ? '#DC2626' : '#2563EB';
   const strokeColor = isCaptureTarget
@@ -44,11 +53,21 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
 
   return (
     <G
-      x={cx}
+      x={cx + shakeOffset}
       y={cy}
       opacity={isBraxRestricted ? 0.45 : 1}
       onPress={onPress}
     >
+      {/* Refusal Indicator (Amber Ring, only while the shake plays) */}
+      {isShaking && (
+        <Circle
+          r={radius * 1.45}
+          fill="none"
+          stroke="#F59E0B"
+          strokeWidth={3}
+        />
+      )}
+
       {/* Threatened Warning Indicator (Amber Dashed Halo) */}
       {isThreatened && (
         <Circle

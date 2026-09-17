@@ -36,6 +36,12 @@ export interface GameStoreState {
   // Feedback & History
   statusMessage: string | null;
   errorMessage: string | null;
+  /** Piece that just refused an action; the board shakes it. */
+  rejectedPieceId: string | null;
+  /** Bumped on every rejection so repeating the same illegal tap replays the shake. */
+  rejectionNonce: number;
+  /** Bumped when the player taps a node that is not a legal target; flashes the legal ones. */
+  targetHintNonce: number;
   history: GameState[]; // Rollback history stack
   canUndo: boolean;
 

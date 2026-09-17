@@ -5,8 +5,8 @@
  */
 
 import React, { useState } from 'react';
-import { MobileGameScreen } from '../mobile/MobileGameScreen.tsx';
-import { useGameStore } from '../mobile/useGameStore.ts';
+import { MobileGameScreen } from '../mobile/components/MobileGameScreen.tsx';
+import { useGameStore } from '../mobile/store/useGameStore.ts';
 import {
   Smartphone,
   Code2,
@@ -23,15 +23,15 @@ import {
 const CODE_SNIPPETS: Record<string, { title: string; filename: string; language: string; code: string; desc: string }> = {
   store: {
     title: 'Zustand Store (useGameStore.ts)',
-    filename: 'src/mobile/useGameStore.ts',
+    filename: 'src/mobile/store/useGameStore.ts',
     language: 'typescript',
     desc: 'Zarządza stanem GameState, fazami tury (AWAITING_SELECTION, PIECE_SELECTED, PENDING_BRAX_CHOICE), walidacją ruchów oraz wywoływaniem Brax.',
     code: `import { create } from 'zustand';
-import { GameStoreState, TurnPhase } from './types.ts';
-import { GameState, MoveAction, NodeCoord } from '../engine/types.ts';
-import { defaultBraxEngine } from '../engine/engine.ts';
-import { findPieceCoord } from '../engine/movement.ts';
-import { areCoordsEqual } from '../engine/geometry.ts';
+import { GameStoreState, TurnPhase } from '../types.ts';
+import { GameState, MoveAction, NodeCoord } from '../../engine/types.ts';
+import { defaultBraxEngine } from '../../engine/engine.ts';
+import { findPieceCoord } from '../../engine/movement.ts';
+import { areCoordsEqual } from '../../engine/geometry.ts';
 
 export const useGameStore = create<GameStoreState>((set, get) => ({
   gameState: defaultBraxEngine.initGame('two_player'),
@@ -83,15 +83,15 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
   board: {
     title: 'Responsive Board (BraxBoard.tsx)',
-    filename: 'src/mobile/BraxBoard.tsx',
+    filename: 'src/mobile/components/BraxBoard.tsx',
     language: 'tsx',
     desc: 'Renderowanie siatki 9x9 w react-native-svg, krawędzi ortogonalnych (RED/BLUE), etykiet startowych 1..7 oraz 81 punktów dotykowych. Rozmiar planszy pochodzi z pomiaru kontenera (onLayout), nie z szerokości okna.',
     code: `import React, { useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
-import { useGameStore } from './useGameStore.ts';
+import { useGameStore } from '../store/useGameStore.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
-import { CANONICAL_BRAX_BOARD } from '../engine/board.ts';
+import { CANONICAL_BRAX_BOARD } from '../../engine/board.ts';
 
 export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
   const windowDims = useWindowDimensions();
@@ -132,12 +132,12 @@ export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
   },
   piece: {
     title: 'Piece Renderer (PieceRenderer.tsx)',
-    filename: 'src/mobile/PieceRenderer.tsx',
+    filename: 'src/mobile/components/PieceRenderer.tsx',
     language: 'tsx',
     desc: 'Renderuje pionki (okrąg RED/BLUE, wzór PLAIN vs MARKED, obwódki zaznaczenia i ostrzeżenia o zagrożeniu).',
     code: `import React from 'react';
 import { G, Circle, Text as SvgText, Polygon } from 'react-native-svg';
-import { Piece } from '../engine/types.ts';
+import { Piece } from '../../engine/types.ts';
 
 export const PieceRenderer: React.FC<PieceRendererProps> = ({
   piece, cx, cy, radius, isSelected, isThreatened, isCaptureTarget, isBraxRestricted, onPress
@@ -159,12 +159,12 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
   },
   modal: {
     title: 'Brax Choice Modal (BraxModal.tsx)',
-    filename: 'src/mobile/BraxModal.tsx',
+    filename: 'src/mobile/components/BraxModal.tsx',
     language: 'tsx',
     desc: 'Wstrzymuje zakończenie tury, gdy ruch stwarza bezpośrednie zagrożenie i umożliwia wybór: "Call Brax!" lub "Zwykły ruch".',
     code: `import React from 'react';
 import { Modal, View, Text, TouchableOpacity } from 'react-native';
-import { useGameStore } from './useGameStore.ts';
+import { useGameStore } from '../store/useGameStore.ts';
 
 export const BraxModal: React.FC = () => {
   const { turnPhase, confirmBraxChoice, cancelPendingMove } = useGameStore();

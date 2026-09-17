@@ -6,8 +6,8 @@
 
 import React from 'react';
 import { G, Circle, Text as SvgText, Polygon } from 'react-native-svg';
-import { Piece } from '../engine/types.ts';
-import { useShakeOffset } from './animations.ts';
+import { Piece } from '../../engine/types.ts';
+import { useShakeOffset } from '../hooks/animations.ts';
 
 export interface PieceRendererProps {
   piece: Piece;

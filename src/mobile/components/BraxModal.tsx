@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { useGameStore } from './useGameStore.ts';
+import { useGameStore } from '../store/useGameStore.ts';
 
 export const BraxModal: React.FC = () => {
   const {

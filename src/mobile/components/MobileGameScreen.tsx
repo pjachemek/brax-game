@@ -14,7 +14,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { useGameStore } from './useGameStore.ts';
+import { useGameStore } from '../store/useGameStore.ts';
 import { BraxBoard } from './BraxBoard.tsx';
 import { BraxModal } from './BraxModal.tsx';
 

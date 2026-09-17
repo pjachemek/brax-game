@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useGameStore } from '../useGameStore.ts';
-import { GameState, MoveAction, Piece } from '../../engine/types.ts';
+import { GameState, MoveAction, Piece } from '../../../engine/types.ts';
 
 function createEmptyTestState(): GameState {
   const board: Record<string, Piece | null> = {};

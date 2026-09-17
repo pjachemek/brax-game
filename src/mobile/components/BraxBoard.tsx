@@ -7,12 +7,12 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
-import { useGameStore } from './useGameStore.ts';
+import { useGameStore } from '../store/useGameStore.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
-import { useFlash, usePulse } from './animations.ts';
-import { CANONICAL_BRAX_BOARD } from '../engine/board.ts';
-import { NodeCoord, Piece } from '../engine/types.ts';
-import { BOARD_SIZE, areCoordsEqual } from '../engine/geometry.ts';
+import { useFlash, usePulse } from '../hooks/animations.ts';
+import { CANONICAL_BRAX_BOARD } from '../../engine/board.ts';
+import { NodeCoord, Piece } from '../../engine/types.ts';
+import { BOARD_SIZE, areCoordsEqual } from '../../engine/geometry.ts';
 
 export interface BraxBoardProps {
   size?: number;

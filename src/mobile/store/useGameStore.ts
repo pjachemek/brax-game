@@ -5,11 +5,11 @@
  */
 
 import { create } from 'zustand';
-import { GameStoreState, TurnPhase } from './types.ts';
-import { GameState, MoveAction, NodeCoord, Piece } from '../engine/types.ts';
-import { defaultBraxEngine } from '../engine/engine.ts';
-import { findPieceCoord } from '../engine/movement.ts';
-import { areCoordsEqual } from '../engine/geometry.ts';
+import { GameStoreState, TurnPhase } from '../types.ts';
+import { GameState, MoveAction, NodeCoord, Piece } from '../../engine/types.ts';
+import { defaultBraxEngine } from '../../engine/engine.ts';
+import { findPieceCoord } from '../../engine/movement.ts';
+import { areCoordsEqual } from '../../engine/geometry.ts';
 
 export const useGameStore = create<GameStoreState>((set, get) => {
   const initialGameState = defaultBraxEngine.initGame('two_player');

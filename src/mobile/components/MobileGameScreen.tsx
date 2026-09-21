@@ -12,11 +12,35 @@ import {
   ScrollView,
   StyleSheet,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 // React Native's own SafeAreaView is deprecated (and was iOS-only); the insets
 // now come from react-native-safe-area-context, which works on Android, iOS and
 // react-native-web alike.
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
+
+/**
+ * SafeAreaProvider renders *no children at all* until it has measured its own
+ * insets, and on web `initialWindowMetrics` is null — so without a seed the
+ * first paint is empty and everything inside, including the board's own width
+ * measurement, happens a frame late against a container that is still settling.
+ * Zero insets plus the window frame is the right starting point for the web
+ * simulator; on a device the measured values land immediately after and correct
+ * any real inset.
+ */
+const INITIAL_METRICS = initialWindowMetrics ?? {
+  frame: {
+    x: 0,
+    y: 0,
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+  },
+  insets: { top: 0, left: 0, right: 0, bottom: 0 },
+};
 import { PLAYER_PALETTE, SIGNAL } from '../theme.ts';
 import { useGameStore, bootstrapGameSession } from '../store/useGameStore.ts';
 import { BraxBoard } from './BraxBoard.tsx';
@@ -28,7 +52,7 @@ import { BraxModal } from './BraxModal.tsx';
  * own SafeAreaProvider rather than relying on one above it.
  */
 export const MobileGameScreen: React.FC = () => (
-  <SafeAreaProvider>
+  <SafeAreaProvider initialMetrics={INITIAL_METRICS}>
     <MobileGameScreenContent />
   </SafeAreaProvider>
 );
@@ -152,7 +176,14 @@ const MobileGameScreenContent: React.FC = () => {
         {/* Main Responsive Game Board */}
         <View
           style={styles.boardWrapper}
-          onLayout={(e) => setBoardWidth(e.nativeEvent.layout.width)}
+          onLayout={(e) => {
+            // A container laid out while it is hidden — a background tab, or a
+            // frame that has not been sized yet — measures 0. Latching that
+            // would leave the board stuck until something forced a re-layout,
+            // which is why rotating the screen used to be the way to fix it.
+            const { width } = e.nativeEvent.layout;
+            if (width > 0) setBoardWidth(width);
+          }}
         >
           {boardWidth !== null && <BraxBoard size={boardWidth} />}
         </View>

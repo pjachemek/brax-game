@@ -1,7 +1,12 @@
 /**
  * Brax Mobile UI - Primary Screen Component (React Native)
- * Orchestrates the full mobile game view: header, scoreboard, a fixed-height status
- * strip, the responsive 9x9 board, interactive bottom controls, and the Brax modal.
+ *
+ * The screen is laid out around a single priority: while a game is on, the board
+ * is the interface. Everything else is either a one-line header (whose turn it is,
+ * plus undo and new game as icons) or an overlay that appears only when it has
+ * something to say. Nothing scrolls and nothing sits below the board, so the board
+ * takes every pixel the device has left and its pieces are drawn as large as that
+ * space allows — which is what makes them reachable under a fingertip.
  */
 
 import React from 'react';
@@ -9,7 +14,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
   StatusBar,
   Dimensions,
@@ -46,6 +50,9 @@ import { useGameStore, bootstrapGameSession } from '../store/useGameStore.ts';
 import { BraxBoard } from './BraxBoard.tsx';
 import { BraxModal } from './BraxModal.tsx';
 
+/** How long the new-game button stays armed before it disarms itself. */
+const RESET_CONFIRM_MS = 4000;
+
 /**
  * The screen is also the mobile app's root, and it is embedded in hosts (such as
  * the web simulator) that provide no provider of their own, so it carries its
@@ -61,22 +68,22 @@ const MobileGameScreenContent: React.FC = () => {
   // The board must size itself to the space this screen actually gets, not to the
   // window: when this screen is embedded in the web simulator's phone frame, the
   // window is far wider than the frame and a window-sized board overflows it.
-  const [boardWidth, setBoardWidth] = React.useState<number | null>(null);
+  const [boardSize, setBoardSize] = React.useState<number | null>(null);
+
+  // New game wipes the game and is now behind a small icon, so it is armed by one
+  // press and fired by a second rather than going off on a mis-tap.
+  const [resetArmed, setResetArmed] = React.useState(false);
 
   const {
     gameId,
     gameState,
-    selectedPieceId,
     turnPhase,
-    statusMessage,
-    errorMessage,
     connectionError,
     isBusy,
     canUndo,
     undoMove,
     resetGame,
     dismissError,
-    unselectPiece,
     initGame,
   } = useGameStore();
 
@@ -88,6 +95,12 @@ const MobileGameScreenContent: React.FC = () => {
       void bootstrapGameSession();
     }
   }, [gameId, turnPhase, isBusy]);
+
+  React.useEffect(() => {
+    if (!resetArmed) return;
+    const timer = setTimeout(() => setResetArmed(false), RESET_CONFIRM_MS);
+    return () => clearTimeout(timer);
+  }, [resetArmed]);
 
   if (!gameState) {
     return (
@@ -109,71 +122,75 @@ const MobileGameScreenContent: React.FC = () => {
 
   const isRedTurn = gameState.turn === 'RED';
   const isGameOver = gameState.result !== null;
+  const undoDisabled = !canUndo || isBusy;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* App Bar Header */}
+      <View style={styles.screen}>
+        {/* One-line command bar: whose turn it is, and the only two actions a game
+            in progress needs. Both are icons, pushed clear of the board. */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>BRAX</Text>
-            <Text style={styles.subtitle}>F. B. Denham • Rules Engine</Text>
-          </View>
-
-          <View style={styles.turnBadgeContainer}>
+          <View style={styles.turnBadge}>
             <View
               style={[
                 styles.turnDot,
                 { backgroundColor: PLAYER_PALETTE[isRedTurn ? 'RED' : 'BLUE'].piece },
               ]}
             />
-            <Text style={styles.turnText}>
-              {isRedTurn ? 'Tura: CZERWONY' : 'Tura: NIEBIESKI'}
-            </Text>
+            <Text style={styles.turnText}>{isRedTurn ? 'CZERWONY' : 'NIEBIESKI'}</Text>
+          </View>
+
+          <View style={styles.headerActions}>
+            {resetArmed ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.iconBtn, styles.confirmBtn, isBusy && styles.disabledBtn]}
+                  disabled={isBusy}
+                  accessibilityLabel="Potwierdź nową grę"
+                  onPress={() => {
+                    setResetArmed(false);
+                    void resetGame();
+                  }}
+                >
+                  <Text style={styles.confirmBtnText}>Nowa gra?</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  accessibilityLabel="Anuluj"
+                  onPress={() => setResetArmed(false)}
+                >
+                  <Text style={styles.iconBtnText}>✕</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.iconBtn, undoDisabled && styles.disabledBtn]}
+                  disabled={undoDisabled}
+                  accessibilityLabel="Cofnij ruch"
+                  onPress={() => void undoMove()}
+                >
+                  <Text style={[styles.iconBtnText, undoDisabled && styles.disabledBtnText]}>
+                    ↩
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconBtn, isBusy && styles.disabledBtn]}
+                  disabled={isBusy}
+                  accessibilityLabel="Nowa gra"
+                  onPress={() => setResetArmed(true)}
+                >
+                  <Text style={[styles.iconBtnText, isBusy && styles.disabledBtnText]}>＋</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
-        {/* Scoreboard & Captured Graveyard */}
-        <View style={styles.scoreboard}>
-          {/* Red Player Stats */}
-          <View
-            style={[
-              styles.playerScoreCard,
-              isRedTurn && styles.activePlayerScoreCard,
-            ]}
-          >
-            <View style={styles.playerInfoRow}>
-              <View style={[styles.playerColorCircle, { backgroundColor: PLAYER_PALETTE.RED.piece }]} />
-              <Text style={styles.playerName}>Czerwony</Text>
-            </View>
-            <Text style={styles.capturedCount}>
-              Zbito: {gameState.capturedPieces.RED.length}
-            </Text>
-          </View>
-
-          {/* Blue Player Stats */}
-          <View
-            style={[
-              styles.playerScoreCard,
-              !isRedTurn && styles.activePlayerScoreCard,
-            ]}
-          >
-            <View style={styles.playerInfoRow}>
-              <View style={[styles.playerColorCircle, { backgroundColor: PLAYER_PALETTE.BLUE.piece }]} />
-              <Text style={styles.playerName}>Niebieski</Text>
-            </View>
-            <Text style={styles.capturedCount}>
-              Zbito: {gameState.capturedPieces.BLUE.length}
-            </Text>
-          </View>
-        </View>
-
-        {/* Main Responsive Game Board */}
+        {/* The board claims all remaining space and takes the shorter of the two
+            axes, so it is as large as the device allows in either orientation. */}
         <View
           style={styles.boardWrapper}
           onLayout={(e) => {
@@ -181,36 +198,19 @@ const MobileGameScreenContent: React.FC = () => {
             // frame that has not been sized yet — measures 0. Latching that
             // would leave the board stuck until something forced a re-layout,
             // which is why rotating the screen used to be the way to fix it.
-            const { width } = e.nativeEvent.layout;
-            if (width > 0) setBoardWidth(width);
+            const { width, height } = e.nativeEvent.layout;
+            const side = Math.min(width, height);
+            if (side > 0) setBoardSize(side);
           }}
         >
-          {boardWidth !== null && <BraxBoard size={boardWidth} />}
+          {boardSize !== null && <BraxBoard size={boardSize} />}
         </View>
+      </View>
 
-        {/* Bottom Game Controls */}
-        <View style={styles.controlsRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, (!canUndo || isBusy) && styles.disabledBtn]}
-            disabled={!canUndo || isBusy}
-            onPress={() => void undoMove()}
-          >
-            <Text style={[styles.actionBtnText, (!canUndo || isBusy) && styles.disabledBtnText]}>
-              ↩ Cofnij ruch
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.resetBtn, isBusy && styles.disabledBtn]}
-            disabled={isBusy}
-            onPress={() => void resetGame()}
-          >
-            <Text style={styles.resetBtnText}>↺ Nowa gra</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Game Over Modal / Card */}
-        {isGameOver && (
+      {/* Game over: an overlay rather than a card in the flow, so the final
+          position stays exactly where it was played. */}
+      {isGameOver && (
+        <View style={styles.overlay}>
           <View style={styles.gameOverCard}>
             <Text style={styles.gameOverTitle}>KONIEC GRY</Text>
             <Text style={styles.gameOverWinner}>
@@ -230,15 +230,18 @@ const MobileGameScreenContent: React.FC = () => {
               <Text style={styles.gameOverBtnText}>Zagraj ponownie</Text>
             </TouchableOpacity>
           </View>
-        )}
-        {/* A lost engine connection is not a rules refusal, so it gets its own
-            banner rather than the status strip's error slot. */}
-        {connectionError && (
-          <TouchableOpacity style={styles.connectionBanner} onPress={dismissError}>
-            <Text style={styles.connectionBannerText}>{connectionError}</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
+        </View>
+      )}
+
+      {/* A lost engine connection is not a rules refusal, so it gets its own
+          banner rather than the status strip's error slot. It floats over the
+          board instead of taking space from it — a reconnect must not resize
+          the board under the player's hand. */}
+      {connectionError && (
+        <TouchableOpacity style={styles.connectionBanner} onPress={dismissError}>
+          <Text style={styles.connectionBannerText}>{connectionError}</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Brax Choice Modal */}
       <BraxModal />
@@ -251,45 +254,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 32,
-    alignItems: 'center',
+  screen: {
+    flex: 1,
+    padding: 8,
   },
   header: {
-    width: '100%',
-    maxWidth: 480,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#0F172A',
-    letterSpacing: 1,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  turnBadgeContainer: {
+  turnBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
   },
   turnDot: {
     width: 10,
@@ -299,162 +283,73 @@ const styles = StyleSheet.create({
   },
   turnText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#1E293B',
+    letterSpacing: 0.5,
   },
-  statusStrip: {
-    // Height is fixed on purpose: this slot is always on screen, so its content
-    // can change without moving the board or anything else below it.
-    width: '100%',
-    maxWidth: 480,
-    height: 48,
-    paddingHorizontal: 12,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    gap: 8,
   },
-  statusStripError: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#F87171',
-  },
-  statusStripSelected: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  statusStripText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  statusStripTextError: {
-    color: '#991B1B',
-  },
-  statusStripTextSelected: {
-    color: '#065F46',
-  },
-  errorDismiss: {
-    fontSize: 14,
-    color: '#991B1B',
-    fontWeight: '700',
-    marginLeft: 8,
-  },
-  scoreboard: {
-    width: '100%',
-    maxWidth: 480,
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
-  },
-  playerScoreCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  iconBtn: {
+    // 44pt is the smallest target a thumb hits reliably: the icons are small,
+    // the things you press are not.
+    minWidth: 44,
+    height: 44,
+    paddingHorizontal: 10,
     borderRadius: 14,
-    padding: 10,
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-  },
-  activePlayerScoreCard: {
-    borderColor: '#0F172A',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  playerInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  playerColorCircle: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  playerName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  capturedCount: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  boardWrapper: {
-    // Matches the width rules of the banners above so the board lines up with them,
-    // and reserves its square footprint up front so nothing jumps once measured.
-    width: '100%',
-    maxWidth: 480,
-    aspectRatio: 1,
-    marginVertical: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unselectBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#D1FAE5',
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  unselectBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  controlsRow: {
-    width: '100%',
-    maxWidth: 480,
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  actionBtn: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#CBD5E1',
-    borderRadius: 14,
-    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionBtnText: {
-    fontSize: 13,
+  iconBtnText: {
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: '700',
     color: '#334155',
   },
+  confirmBtn: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  confirmBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   disabledBtn: {
-    opacity: 0.4,
+    opacity: 0.35,
   },
   disabledBtnText: {
     color: '#94A3B8',
   },
-  resetBtn: {
-    backgroundColor: '#F1F5F9',
-    borderColor: '#E2E8F0',
+  boardWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  resetBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#475569',
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    paddingHorizontal: 24,
   },
   gameOverCard: {
     width: '100%',
-    maxWidth: 480,
+    maxWidth: 360,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: SIGNAL.select,
     borderRadius: 20,
     padding: 20,
-    marginTop: 16,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
@@ -492,9 +387,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
   },
-  boldText: {
-    fontWeight: '700',
-  },
   connectingWrapper: {
     flex: 1,
     alignItems: 'center',
@@ -515,9 +407,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   connectionBanner: {
-    width: '100%',
-    maxWidth: 480,
-    marginTop: 12,
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#FEF3C7',

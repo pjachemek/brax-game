@@ -30,6 +30,29 @@ const WEB_DRAG_SURFACE = Platform.OS === 'web' ? ({ touchAction: 'none' } as nev
 
 /** Movement, in px, before a press is treated as a drag rather than a tap. */
 const DRAG_THRESHOLD = 6;
+/**
+ * A dragged piece is drawn this far *above* the finger rather than under it, so
+ * the thing being aimed is never the thing the fingertip is covering. The drop
+ * resolves at the piece, not at the touch, so what is seen is what is played.
+ *
+ * As a fraction of a cell, the offset is deliberately just under one square: the
+ * piece sits in the neighbouring square's airspace while the finger stays in the
+ * square below it, which is the arrangement every offset-drag board uses.
+ */
+const DRAG_LIFT_CELLS = 0.92;
+/**
+ * How far the finger must travel before the drop is armed. Below this the piece
+ * is lifted but nothing is aimed yet, so a grab that turns out to be a tap — or
+ * a hand that shifts by a few pixels — returns the piece home with its selection
+ * intact instead of playing the square the lift happens to hover.
+ */
+const DRAG_COMMIT_CELLS = 0.5;
+/** A piece's radius as a fraction of one cell. */
+const PIECE_RADIUS_RATIO = 0.44;
+/** Daylight between a piece on an outermost rank and the rank-label band. */
+const EDGE_GAP = 3;
+/** The dragged piece is drawn this much larger than it sits on the board. */
+const DRAG_SCALE = 1.3;
 /** How long after a drop a press is ignored, so the release is not also a tap. */
 const PRESS_SUPPRESSION_MS = 250;
 
@@ -40,9 +63,11 @@ interface DragState {
   /** That square in board pixels — the origin every gesture delta is added to. */
   originX: number;
   originY: number;
-  /** Current position of the dragged piece, in board pixels. */
+  /** Current position of the dragged piece, in board pixels — already lifted. */
   x: number;
   y: number;
+  /** True once the gesture has travelled far enough for the drop to count. */
+  armed: boolean;
 }
 
 export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
@@ -72,11 +97,16 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
   // The band reserved at the top and bottom edge for the rank labels. Labels are
   // centred in it, so it has to hold the digits plus the inset twice over.
   const labelBand = labelFontSize + 2 * labelInset;
-  const padding = labelBand + boardSize * 0.045;
-  const innerGridSize = boardSize - 2 * padding;
-  const cellSize = innerGridSize / 8;
-  // Capped so a piece on an outermost rank can never reach into the label band.
-  const pieceRadius = Math.max(9, Math.min(cellSize * 0.38, padding - labelBand));
+  // The grid and the pieces are solved together rather than in sequence. Padding
+  // used to be a flat fraction of the board and the radius was then clipped to
+  // whatever that left over, which made the pieces smaller than the grid could
+  // afford. Here the padding is exactly what a piece on an outermost rank needs —
+  // the label band, the piece itself, and a hair of daylight between the two — so
+  // the cell size falls out of one equation and the pieces get the rest.
+  const cellSize = (boardSize - 2 * (labelBand + EDGE_GAP)) / (8 + 2 * PIECE_RADIUS_RATIO);
+  const pieceRadius = Math.max(9, cellSize * PIECE_RADIUS_RATIO);
+  const padding = labelBand + pieceRadius + EDGE_GAP;
+  const dragLift = cellSize * DRAG_LIFT_CELLS;
 
   // Helper: map grid coordinate (0..8, 0..8) to pixel coordinates (cx, cy).
   // The board is drawn like the official artwork: row 9 at the top, row 1 at the
@@ -159,6 +189,8 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     pxToCoord: typeof pxToCoord;
     selectPiece: typeof selectPiece;
     selectDestination: typeof selectDestination;
+    dragLift: number;
+    commitDistance: number;
   }>(null!);
   liveRef.current = {
     gameState,
@@ -167,6 +199,8 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     pxToCoord,
     selectPiece,
     selectDestination,
+    dragLift,
+    commitDistance: cellSize * DRAG_COMMIT_CELLS,
   };
 
   const endDrag = useCallback(() => {
@@ -205,7 +239,8 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
             originX: origin.cx,
             originY: origin.cy,
             x: origin.cx,
-            y: origin.cy,
+            y: origin.cy - liveRef.current.dragLift,
+            armed: false,
           });
 
           // Ask for the piece's legal moves now, so the targets are already lit
@@ -217,9 +252,16 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
               : liveRef.current.selectPiece(pressed.id);
         },
         onPanResponderMove: (_evt, gesture) => {
+          const { dragLift, commitDistance } = liveRef.current;
+          const armed = Math.hypot(gesture.dx, gesture.dy) >= commitDistance;
           setDrag((current) =>
             current
-              ? { ...current, x: current.originX + gesture.dx, y: current.originY + gesture.dy }
+              ? {
+                  ...current,
+                  x: current.originX + gesture.dx,
+                  y: current.originY + gesture.dy - dragLift,
+                  armed,
+                }
               : null
           );
         },
@@ -231,13 +273,18 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
           endDrag();
           if (!dropped) return;
 
+          // Released before the gesture committed to anywhere: the piece returns
+          // home but stays selected, so the move can still be finished by tap.
+          if (!dropped.armed) return;
+
+          // Resolved at the piece, not at the finger — the lift is part of the
+          // aim, and the hovered marker has been showing this square all along.
           const target = liveRef.current.pxToCoord(
             dropped.originX + gesture.dx,
-            dropped.originY + gesture.dy
+            dropped.originY + gesture.dy - liveRef.current.dragLift
           );
 
-          // Dropped off the board or back where it started: the piece returns
-          // home but stays selected, so the move can still be finished by tap.
+          // Dropped off the board or back where it started: same as above.
           if (!target || areCoordsEqual(target, dropped.from)) return;
 
           void (async () => {
@@ -259,7 +306,8 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
 
   // The destination the dragged piece is currently over, if it is a legal one.
   const hoverKey = useMemo(() => {
-    if (!drag) return null;
+    // Before the gesture commits, nothing is aimed yet, so nothing is armed.
+    if (!drag || !drag.armed) return null;
     const over = pxToCoord(drag.x, drag.y);
     if (!over) return null;
     const key = `${over.x},${over.y}`;
@@ -274,6 +322,12 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
   }
 
   const draggedPiece = drag ? gameState.board[`${drag.from.x},${drag.from.y}`] : null;
+
+  // A piece lifted off the top rank would ride past the board's edge and be
+  // clipped away by the SVG viewport. It is only *drawn* back inside — the drop
+  // still resolves at the true lifted point, which in that region is off the grid
+  // and therefore shows no target ring, so nothing misleading is on screen.
+  const dragDrawY = drag ? Math.max(drag.y, pieceRadius * DRAG_SCALE + 2) : 0;
 
   return (
     <View
@@ -456,7 +510,10 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
         })}
 
         {/* Drag Layer: the lifted piece, drawn above everything it passes over,
-            plus a marker on the square it came from so the position still reads. */}
+            plus a marker on the square it came from so the position still reads.
+            The piece rides a cell above the finger and is drawn larger there, so
+            the player is looking at the piece rather than at their own fingertip;
+            a faint tether keeps the connection between the two legible. */}
         {drag && draggedPiece && (
           <G>
             <Circle
@@ -469,11 +526,21 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
               strokeDasharray="3,3"
               strokeOpacity={0.8}
             />
+            <Line
+              x1={drag.x}
+              y1={drag.y + dragLift}
+              x2={drag.x}
+              y2={dragDrawY + pieceRadius * DRAG_SCALE}
+              stroke={PLAYER_PALETTE[draggedPiece.color].line}
+              strokeWidth={1.5}
+              strokeDasharray="2,3"
+              strokeOpacity={0.5}
+            />
             <PieceRenderer
               piece={draggedPiece}
               cx={drag.x}
-              cy={drag.y}
-              radius={pieceRadius * 1.15}
+              cy={dragDrawY}
+              radius={pieceRadius * DRAG_SCALE}
               isSelected
               isThreatened={threatenedIds.has(draggedPiece.id)}
             />

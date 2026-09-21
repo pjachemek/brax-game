@@ -252,6 +252,7 @@ export class GameSessionManager {
     return {
       snapshot: toSnapshot(session),
       capturedPieceId: lastEntry?.capturedPiece?.id ?? null,
+      capturedPieceIds: (lastEntry?.capturedPieces ?? []).map((p) => p.id),
       braxCalled,
       enforcedPieceIds: braxCalled ? nextState.activeBrax?.threatenedPieceIds ?? [] : [],
       move,

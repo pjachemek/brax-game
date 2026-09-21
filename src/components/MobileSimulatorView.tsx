@@ -262,7 +262,10 @@ export const MobileSimulatorView: React.FC = () => {
             </div>
 
             {/* Inner Phone Screen */}
-            <div className="w-full h-[660px] bg-slate-50 rounded-[34px] overflow-hidden flex flex-col pt-6 relative border border-slate-200">
+            {/* select-none: the simulated phone is an app, not page content — a
+                drag that runs off the board must not start selecting the page
+                around it. The screen itself sets the same rule for real devices. */}
+            <div className="w-full h-[660px] bg-slate-50 rounded-[34px] overflow-hidden flex flex-col pt-6 relative border border-slate-200 select-none">
               <MobileGameScreen />
             </div>
 

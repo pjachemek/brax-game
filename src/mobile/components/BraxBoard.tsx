@@ -22,11 +22,31 @@ export interface BraxBoardProps {
 }
 
 /**
- * On touch screens the browser would otherwise pan the page when a drag starts
- * on the board, stealing the gesture from the responder. Chess-style boards do
- * the same: the board itself is not a scroll surface, the space around it is.
+ * Everything the browser does to a drag that begins on a piece, switched off.
+ *
+ *  - `touchAction`: without it a touch drag pans the page instead of reaching the
+ *    responder. Chess-style boards all do this: the board itself is not a scroll
+ *    surface, the space around it is.
+ *  - `userSelect`: the board is full of real text — the rank labels and the ID on
+ *    every plain piece — so a drag across it was being read as a text selection,
+ *    leaving highlighted digits behind and, on desktop, dragging the glyph rather
+ *    than the piece. The prefixed spellings are still needed for Safari and for
+ *    older WebViews, where the unprefixed property alone does nothing.
+ *  - `WebkitTouchCallout`: suppresses iOS's press-and-hold copy/share bubble.
+ *  - `WebkitTapHighlightColor`: no grey flash box over a tapped piece on Android.
  */
-const WEB_DRAG_SURFACE = Platform.OS === 'web' ? ({ touchAction: 'none' } as never) : null;
+const WEB_DRAG_SURFACE =
+  Platform.OS === 'web'
+    ? ({
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
+      } as never)
+    : null;
 
 /** Movement, in px, before a press is treated as a drag rather than a tap. */
 const DRAG_THRESHOLD = 6;
@@ -130,6 +150,23 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
       map.set(key, { to: move.to, isCapture });
     }
     return map;
+  }, [validMoves, gameState?.board, gameState?.turn]);
+
+  // Enemy pieces standing on the intermediate node of a distance 2 move. They
+  // are taken as the piece travels over them, so they are just as much a target
+  // as the destination and must not look safe while the move is on offer.
+  const sweptCaptureKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (!gameState) return keys;
+    for (const move of validMoves) {
+      if (!move.mid) continue;
+      const key = `${move.mid.x},${move.mid.y}`;
+      const midPiece = gameState.board[key];
+      if (midPiece && midPiece.color !== gameState.turn) {
+        keys.add(key);
+      }
+    }
+    return keys;
   }, [validMoves, gameState?.board, gameState?.turn]);
 
   // Set of threatened piece IDs (if under Brax or threat)
@@ -431,7 +468,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
           const pt = coordToPx({ x, y });
           const isSelected = piece.id === selectedPieceId;
           const isThreatened = threatenedIds.has(piece.id);
-          const isCaptureTarget = destMap.get(key)?.isCapture ?? false;
+          const isCaptureTarget = (destMap.get(key)?.isCapture ?? false) || sweptCaptureKeys.has(key);
 
           const isBraxRestricted =
             gameState.activeBrax !== null &&

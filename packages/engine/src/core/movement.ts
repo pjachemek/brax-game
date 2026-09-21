@@ -49,6 +49,32 @@ export function getPieceAt(state: GameState, coord: NodeCoord): Piece | null {
 }
 
 /**
+ * Enemy pieces displaced by walking `path`, in travel order.
+ *
+ * A distance 2 move captures on both nodes it touches: the intermediate node it
+ * passes over and the node it lands on. Everything that needs to know what a
+ * move takes off the board - applyMove, threat calculation, the UI - asks here
+ * rather than re-deriving the rule.
+ */
+export function getCapturesAlongPath(
+  state: GameState,
+  path: MovePath,
+  movingColor: PlayerColor
+): Array<{ coord: NodeCoord; piece: Piece }> {
+  const captures: Array<{ coord: NodeCoord; piece: Piece }> = [];
+
+  for (const coord of [path.p1, path.p2]) {
+    if (!coord) continue;
+    const piece = getPieceAt(state, coord);
+    if (piece && piece.color !== movingColor) {
+      captures.push({ coord, piece });
+    }
+  }
+
+  return captures;
+}
+
+/**
  * Finds all legal distance 1 and distance 2 movement paths for a piece from its current location,
  * ignoring turn restrictions and Brax forcing (raw kinematic legality).
  */
@@ -83,7 +109,10 @@ export function getRawLegalPathsForPiece(
   // Allowed ONLY when BOTH consecutive segments are of piece's OWN color.
   // Path: P0 -> P1 -> P2.
   // - P1 connected to P0 via segment of pieceColor.
-  // - P1 MUST BE EMPTY (cannot jump over friendly or enemy piece).
+  // - P1 must be empty OR hold an ENEMY piece. An enemy standing on the
+  //   intermediate node is displaced (captured) as the piece travels over it,
+  //   which is how a single turn can capture two enemy pieces. A FRIENDLY
+  //   piece on P1 still blocks the path - own pieces are never jumped.
   // - P2 connected to P1 via segment of pieceColor.
   // - P2 != P0 (no backtracking to starting node).
   // - P2 cannot contain a friendly piece (can be empty or enemy piece).
@@ -91,10 +120,9 @@ export function getRawLegalPathsForPiece(
   const step1Candidates = boardGraph.getNeighborsByColor(fromCoord, pieceColor);
 
   for (const p1 of step1Candidates) {
-    // Crucial rule: Intermediate node P1 MUST BE EMPTY
+    // Own pieces block the path; an enemy on P1 is captured en route.
     const pieceAtP1 = getPieceAt(state, p1);
-    if (pieceAtP1 !== null) {
-      // Node is occupied; jumping over any piece is strictly forbidden!
+    if (pieceAtP1 !== null && pieceAtP1.color === pieceColor) {
       continue;
     }
 
@@ -201,7 +229,7 @@ export function validateMoveAction(
       return {
         valid: false,
         reason:
-          'No legal path to destination. A 2-step move requires both segments to be your color with intermediate node empty (no jumping) and destination not your piece.',
+          'No legal path to destination. A 2-step move requires both segments to be your color, the intermediate node free of your own pieces (an enemy there is captured on the way) and the destination not your piece.',
       };
     }
 

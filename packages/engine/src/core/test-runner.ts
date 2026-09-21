@@ -152,15 +152,15 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
     'Verifies L-shaped 90° path across two consecutive segments of the player’s color.'
   );
 
-  // 4. Blocked Distance 2 (No jumping over pieces)
+  // 4. Blocked Distance 2 (no jumping over own pieces)
   test(
     'dist2-no-jumping',
-    'Jump Prohibition: Distance 2 Blocked When Intermediate Node P1 Is Occupied (Required by prompt)',
+    'Jump Prohibition: Distance 2 Blocked When Intermediate Node P1 Holds a Friendly Piece',
     'Movement',
     () => {
       const state = createEmptyTestState();
       state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
-      state.board['1,1'] = { id: 'OBSTACLE', color: 'BLUE', side: 'PLAIN' };
+      state.board['1,1'] = { id: 'OBSTACLE', color: 'RED', side: 'PLAIN' };
 
       const move2Step: MoveAction = {
         pieceId: 'R1',
@@ -169,13 +169,46 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
       };
       const res = engine.validateMove(state, move2Step);
       if (res.valid) {
-        throw new Error('Move should be blocked by obstacle at intermediate node P1');
+        throw new Error('Move should be blocked by friendly obstacle at intermediate node P1');
       }
       const validMoves = engine.getValidMoves(state, 'R1');
       const found = validMoves.some((m) => m.to.x === 2 && m.to.y === 1);
       if (found) throw new Error('Blocked move appeared in getValidMoves output');
     },
-    'Verifies that intermediate node P1 must be completely empty (no jumping friendly or enemy pieces).'
+    'Verifies that a piece may never jump its own colour: P1 must be free of friendly pieces.'
+  );
+
+  // 4b. Double capture across P1 and P2
+  test(
+    'dist2-double-capture',
+    'Double Capture: Distance 2 Move Takes Enemies on Both P1 and P2',
+    'Captures',
+    () => {
+      const state = createEmptyTestState();
+      state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
+      state.board['1,1'] = { id: 'MID_B', color: 'BLUE', side: 'PLAIN' };
+      state.board['0,1'] = { id: 'DEST_B', color: 'BLUE', side: 'PLAIN' };
+      state.board['8,8'] = { id: 'SAFE_B', color: 'BLUE', side: 'PLAIN' };
+
+      const sweep: MoveAction = {
+        pieceId: 'R1',
+        to: { x: 0, y: 1 },
+        mid: { x: 1, y: 1 },
+      };
+
+      const res = engine.validateMove(state, sweep);
+      if (!res.valid) throw new Error(`Double capture rejected: ${res.reason}`);
+
+      const next = engine.applyMove(state, sweep);
+      if (next.board['1,1'] !== null) throw new Error('Piece on intermediate node was not captured');
+      if (next.board['0,1']?.id !== 'R1') throw new Error('R1 did not land on destination node');
+
+      const takenIds = next.capturedPieces.RED.map((p) => p.id).join(',');
+      if (takenIds !== 'MID_B,DEST_B') {
+        throw new Error(`Expected MID_B,DEST_B in RED graveyard, got "${takenIds}"`);
+      }
+    },
+    'Verifies that one distance 2 move along the player’s own colour displaces enemy pieces on both nodes it touches.'
   );
 
   // 5. Brax Call Enforcement

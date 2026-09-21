@@ -26,6 +26,7 @@ import {
 import { BoardGraph, CANONICAL_BRAX_BOARD } from '../board.ts';
 import {
   findPieceCoord,
+  getCapturesAlongPath,
   getPieceAt,
   getRawLegalPathsForPiece,
   validateMoveAction,
@@ -168,8 +169,15 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     const fromKey = coordToKey(path.p0);
     const toKey = coordToKey(path.p2);
 
-    const targetPiece = newBoard[toKey];
+    // A distance 2 move takes everything it travels over as well as what it
+    // lands on, so captures are resolved from the path, not from the
+    // destination node alone.
+    const captures = getCapturesAlongPath(state, path, movingPlayer);
+
     newBoard[fromKey] = null;
+    for (const capture of captures) {
+      newBoard[coordToKey(capture.coord)] = null;
+    }
     newBoard[toKey] = movingPiece;
 
     // 2. Clone captured pieces
@@ -178,11 +186,9 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       BLUE: [...state.capturedPieces.BLUE],
     };
 
-    let capturedPiece: Piece | undefined;
-    if (targetPiece && targetPiece.color !== movingPlayer) {
-      capturedPiece = targetPiece;
-      newCaptured[movingPlayer].push(targetPiece);
-    }
+    const capturedPieces: Piece[] = captures.map((c) => c.piece);
+    const capturedPiece: Piece | undefined = capturedPieces[0];
+    newCaptured[movingPlayer].push(...capturedPieces);
 
     // 3. Evaluate threats from the new board state
     const intermediateStateForThreats: GameState = {
@@ -228,7 +234,7 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     }
 
     if (redRemaining === 1 && blueRemaining === 1) {
-      if (capturedPiece) {
+      if (capturedPieces.length > 0) {
         new1v1Counter = 0;
       } else {
         new1v1Counter += 1;
@@ -238,14 +244,19 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     }
 
     // 6. Build algebraic representation
+    // Each segment carries its own separator so a double capture reads as one:
+    // "C1xC2xD2" is two pieces taken, "C1-C2xD2" only the piece on the
+    // destination.
+    const capturedAt = (coord: NodeCoord): boolean =>
+      captures.some((c) => c.coord.x === coord.x && c.coord.y === coord.y);
     const p0Alg = coordToAlgebraic(path.p0);
     const p2Alg = coordToAlgebraic(path.p2);
-    const isCapture = Boolean(capturedPiece);
-    const sep = isCapture ? 'x' : '-';
-    let algebraic = `${p0Alg}${sep}${p2Alg}`;
+    const destSep = capturedAt(path.p2) ? 'x' : '-';
+    let algebraic = `${p0Alg}${destSep}${p2Alg}`;
     if (path.distance === 2 && path.p1) {
       const p1Alg = coordToAlgebraic(path.p1);
-      algebraic = isCapture ? `${p0Alg}-${p1Alg}x${p2Alg}` : `${p0Alg}-${p1Alg}-${p2Alg}`;
+      const midSep = capturedAt(path.p1) ? 'x' : '-';
+      algebraic = `${p0Alg}${midSep}${p1Alg}${destSep}${p2Alg}`;
     }
     if (newActiveBrax) {
       algebraic += ' (Brax!)';
@@ -261,6 +272,7 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       to: path.p2,
       distance: path.distance,
       capturedPiece,
+      capturedPieces,
       calledBrax: Boolean(newActiveBrax),
       algebraic,
       timestamp: Date.now(),
@@ -428,6 +440,10 @@ export class TwoPlayerClassicMode implements BraxGameMode {
 
     const newBoard = { ...state.board };
     newBoard[coordToKey(path.p0)] = null;
+    // Pieces taken on the way are off the board before threats are recomputed.
+    for (const capture of getCapturesAlongPath(state, path, pieceInfo.piece.color)) {
+      newBoard[coordToKey(capture.coord)] = null;
+    }
     newBoard[coordToKey(path.p2)] = pieceInfo.piece;
 
     return {

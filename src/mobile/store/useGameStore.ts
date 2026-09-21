@@ -118,6 +118,10 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       message = `Brax ogłoszony! Przeciwnik musi ruszyć zagrożonym pionkiem (${outcome.enforcedPieceIds.join(
         ', '
       )}).`;
+    } else if (outcome.capturedPieceIds?.length > 1) {
+      // A distance 2 move that sweeps both nodes takes two pieces at once; the
+      // strip has to name both or the board looks like it lost one silently.
+      message = `Podwójne zbicie! Pionki ${outcome.capturedPieceIds.join(' i ')} zostały zbite.`;
     } else if (outcome.capturedPieceId) {
       message = `Zbicie! Pionek ${outcome.capturedPieceId} został zbity.`;
     }
@@ -212,6 +216,16 @@ export const useGameStore = create<GameStoreState>((set, get) => {
           const captureCandidate = validMoves.find((m) => areCoordsEqual(m.to, coord));
           if (captureCandidate) {
             await get().selectDestination(coord);
+            return;
+          }
+
+          // The piece may also be taken on the way through: a distance 2 move
+          // sweeps whatever stands on its intermediate node. Tapping that piece
+          // plays the move that takes it, so both halves of a double capture
+          // are reachable by aiming at the enemy.
+          const sweepCandidate = validMoves.find((m) => m.mid && areCoordsEqual(m.mid, coord));
+          if (sweepCandidate) {
+            await get().selectDestination(sweepCandidate.to);
             return;
           }
         }

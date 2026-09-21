@@ -144,14 +144,15 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     expect(nextState.turn).toBe('BLUE');
   });
 
-  it('2. forbids move of 2 when intermediate node P1 is not empty (no jumping over pieces)', () => {
+  it('2. forbids move of 2 when intermediate node P1 holds a friendly piece (no jumping own pieces)', () => {
     const state = createEmptyTestState();
 
     // Starting RED piece at (1,0)
     state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
 
-    // Place an obstacle piece (friendly or enemy) at intermediate node (1,1)
-    state.board['1,1'] = { id: 'BLOCKER', color: 'BLUE', side: 'PLAIN' };
+    // Place a FRIENDLY obstacle at intermediate node (1,1). Own pieces are never
+    // jumped; an enemy there would instead be captured on the way.
+    state.board['1,1'] = { id: 'BLOCKER', color: 'RED', side: 'PLAIN' };
 
     // Valid moves for R1 should NOT contain (0,1) via (1,1)
     const validMoves = engine.getValidMoves(state, 'R1');
@@ -167,6 +168,58 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     const validation = engine.validateMove(state, blockedAction);
     expect(validation.valid).toBe(false);
     expect(validation.reason).toContain('legal path');
+  });
+
+  it('2b. captures two enemy pieces in one turn by sweeping the intermediate and destination nodes', () => {
+    const state = createEmptyTestState();
+
+    // RED at (1,0) with enemies on both nodes of the (1,0) -> (1,1) -> (0,1) path
+    state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
+    state.board['1,1'] = { id: 'B_MID', color: 'BLUE', side: 'PLAIN' };
+    state.board['0,1'] = { id: 'B_DEST', color: 'BLUE', side: 'PLAIN' };
+    state.board['8,8'] = { id: 'B_SAFE', color: 'BLUE', side: 'PLAIN' };
+
+    const doubleCapture: MoveAction = {
+      pieceId: 'R1',
+      to: { x: 0, y: 1 },
+      mid: { x: 1, y: 1 },
+    };
+
+    // The move is offered by the engine, not merely accepted when asked for
+    const offered = engine.getValidMoves(state, 'R1');
+    expect(
+      offered.some((m) => m.to.x === 0 && m.to.y === 1 && m.mid?.x === 1 && m.mid?.y === 1)
+    ).toBe(true);
+
+    expect(engine.validateMove(state, doubleCapture).valid).toBe(true);
+
+    const next = engine.applyMove(state, doubleCapture);
+    expect(next.board['1,0']).toBeNull();
+    expect(next.board['1,1']).toBeNull(); // swept on the way through
+    expect(next.board['0,1']?.id).toBe('R1');
+
+    expect(next.capturedPieces.RED.map((p) => p.id)).toEqual(['B_MID', 'B_DEST']);
+    expect(next.history[0].capturedPieces?.map((p) => p.id)).toEqual(['B_MID', 'B_DEST']);
+    expect(next.history[0].algebraic).toContain('x');
+  });
+
+  it('2c. captures a single enemy standing on the intermediate node of a distance 2 move', () => {
+    const state = createEmptyTestState();
+
+    state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
+    state.board['1,1'] = { id: 'B_MID', color: 'BLUE', side: 'PLAIN' };
+    state.board['8,8'] = { id: 'B_SAFE', color: 'BLUE', side: 'PLAIN' };
+
+    const sweep: MoveAction = {
+      pieceId: 'R1',
+      to: { x: 0, y: 1 },
+      mid: { x: 1, y: 1 },
+    };
+
+    const next = engine.applyMove(state, sweep);
+    expect(next.board['1,1']).toBeNull();
+    expect(next.board['0,1']?.id).toBe('R1');
+    expect(next.capturedPieces.RED.map((p) => p.id)).toEqual(['B_MID']);
   });
 
   it('3. forces movement of threatened piece following callBrax', () => {

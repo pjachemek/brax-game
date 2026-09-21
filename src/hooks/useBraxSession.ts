@@ -188,11 +188,14 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
   const applyOutcome = useCallback(
     (outcome: Awaited<ReturnType<typeof client.applyMove>>) => {
       adopt(outcome.snapshot);
-      if (outcome.capturedPieceId) {
+      const captured = outcome.capturedPieceIds ?? [];
+      if (captured.length > 0) {
         const captor = outcome.snapshot.state.history.at(-1)?.player;
         const captorName = captor === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
         setStatusMessage(
-          `Zbicie wykonane! Gracz ${captorName} pomyślnie zbił wrogiego pionka ${outcome.capturedPieceId}!`
+          captured.length > 1
+            ? `Podwójne zbicie! Gracz ${captorName} zbił dwa wrogie pionki (${captured.join(', ')})!`
+            : `Zbicie wykonane! Gracz ${captorName} pomyślnie zbił wrogiego pionka ${captured[0]}!`
         );
       } else {
         setStatusMessage(null);

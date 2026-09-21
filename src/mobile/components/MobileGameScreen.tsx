@@ -17,6 +17,7 @@ import {
   StyleSheet,
   StatusBar,
   Dimensions,
+  Platform,
 } from 'react-native';
 // React Native's own SafeAreaView is deprecated (and was iOS-only); the insets
 // now come from react-native-safe-area-context, which works on Android, iOS and
@@ -52,6 +53,25 @@ import { BraxModal } from './BraxModal.tsx';
 
 /** How long the new-game button stays armed before it disarms itself. */
 const RESET_CONFIRM_MS = 4000;
+
+/**
+ * On web this screen is still an app, not a document: none of its text is there
+ * to be copied, and letting the browser select it turns a missed grab at a piece
+ * into a highlighted header. Native platforms already behave this way, so the
+ * rule only has to be stated for the web build. The board repeats it for its own
+ * surface, where a stray selection would also hijack the drag gesture.
+ */
+const WEB_UNSELECTABLE =
+  Platform.OS === 'web'
+    ? ({
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        MozUserSelect: 'none',
+        msUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
+      } as never)
+    : null;
 
 /**
  * The screen is also the mobile app's root, and it is embedded in hosts (such as
@@ -104,7 +124,7 @@ const MobileGameScreenContent: React.FC = () => {
 
   if (!gameState) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={[styles.safeArea, WEB_UNSELECTABLE]}>
         <View style={styles.connectingWrapper}>
           <Text style={styles.connectingTitle}>BRAX</Text>
           <Text style={styles.connectingText}>
@@ -125,7 +145,7 @@ const MobileGameScreenContent: React.FC = () => {
   const undoDisabled = !canUndo || isBusy;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, WEB_UNSELECTABLE]}>
       <StatusBar barStyle="dark-content" />
 
       <View style={styles.screen}>

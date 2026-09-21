@@ -487,8 +487,12 @@ export default function App() {
                           </span>
                           <span className="font-semibold text-slate-800">{h.algebraic}</span>
                         </div>
-                        {h.capturedPiece && (
-                          <span className="text-[11px] text-rose-600 font-bold">x{h.capturedPiece.id}</span>
+                        {(h.capturedPieces ?? (h.capturedPiece ? [h.capturedPiece] : [])).length > 0 && (
+                          <span className="text-[11px] text-rose-600 font-bold">
+                            {(h.capturedPieces ?? [h.capturedPiece!])
+                              .map((p) => `x${p.id}`)
+                              .join(' ')}
+                          </span>
                         )}
                       </div>
                     ))}

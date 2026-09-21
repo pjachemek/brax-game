@@ -97,7 +97,13 @@ export interface MoveHistoryEntry {
   mid?: NodeCoord;
   to: NodeCoord;
   distance: 1 | 2;
+  /** First piece taken by the move; kept for callers that only show one. */
   capturedPiece?: Piece;
+  /**
+   * Every piece the move displaced, in travel order. A distance 2 move can take
+   * two: one on the node it passed over and one on the node it landed on.
+   */
+  capturedPieces?: Piece[];
   calledBrax: boolean;
   algebraic: string;
   timestamp: number;

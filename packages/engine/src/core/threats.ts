@@ -13,7 +13,7 @@ import {
 } from './types.ts';
 import { areCoordsEqual, coordToKey, isValidCoord } from './geometry.ts';
 import { BoardGraph, CANONICAL_BRAX_BOARD } from './board.ts';
-import { getRawLegalPathsForPiece, getPieceAt } from './movement.ts';
+import { getRawLegalPathsForPiece, getCapturesAlongPath } from './movement.ts';
 
 /**
  * Calculates all enemy pieces that are currently threatened by pieces of the attacker color.
@@ -48,22 +48,25 @@ export function calculateThreats(
     const legalPaths = getRawLegalPathsForPiece(state, attackerPiece, fromCoord, boardGraph);
 
     for (const path of legalPaths) {
-      // Check if destination lands on an enemy piece
-      const targetPiece = getPieceAt(state, path.p2);
-      if (targetPiece && targetPiece.color === enemyColor) {
+      // A move threatens every enemy piece it would displace: the one it passes
+      // over on a distance 2 path as well as the one it lands on. Both are just
+      // as captured at the end of the turn, so both are legitimate Brax targets.
+      const capturedByPath = getCapturesAlongPath(state, path, attackerColor);
+
+      for (const { coord: targetCoord, piece: targetPiece } of capturedByPath) {
         // Prevent duplicate records for the same attacker piece and target piece
         const alreadyRecorded = threats.some(
           (t) =>
             t.threatenedPieceId === targetPiece.id &&
             t.threatenedByPieceId === attackerPiece.id &&
-            areCoordsEqual(t.attackPath.p2, path.p2)
+            areCoordsEqual(t.threatenedCoord, targetCoord)
         );
 
         if (!alreadyRecorded) {
           threats.push({
             threatenedPieceId: targetPiece.id,
             threatenedColor: targetPiece.color,
-            threatenedCoord: path.p2,
+            threatenedCoord: targetCoord,
             threatenedByPieceId: attackerPiece.id,
             threatenedByColor: attackerPiece.color,
             threatenedByCoord: fromCoord,

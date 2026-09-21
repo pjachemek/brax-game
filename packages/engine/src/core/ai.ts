@@ -33,10 +33,17 @@ export function chooseBestMove(
   for (const move of allLegalMoves) {
     let score = 0;
 
-    // Check capture
+    // Check captures: both the node landed on and, for a distance 2 move, the
+    // node passed over, so a double capture outweighs a single one.
     const destPiece = getPieceAt(state, move.to);
     if (destPiece && destPiece.color !== botColor) {
       score += 100;
+    }
+    if (move.mid) {
+      const midPiece = getPieceAt(state, move.mid);
+      if (midPiece && midPiece.color !== botColor) {
+        score += 100;
+      }
     }
 
     // Check Brax calling bonus

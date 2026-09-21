@@ -89,6 +89,19 @@ export const BoardView: React.FC<BoardViewProps> = ({
     destMap.get(key)!.push(move);
   }
 
+  // Enemy pieces standing on the intermediate node of a distance 2 move: they
+  // are swept off the board as the piece travels over them, so they are capture
+  // targets too, and clicking one plays the move that takes it.
+  const sweepMap = new Map<string, MoveAction>();
+  for (const move of validMoves) {
+    if (!move.mid) continue;
+    const key = coordToKey(move.mid);
+    const midPiece = state.board[key];
+    if (midPiece && midPiece.color !== state.turn && !sweepMap.has(key)) {
+      sweepMap.set(key, move);
+    }
+  }
+
   const edges = CANONICAL_BRAX_BOARD.getAllEdges();
 
   return (
@@ -308,7 +321,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
             const isMyTurn = piece.color === state.turn;
 
             // Check if this piece is at a valid capture destination for selectedPieceId
-            const captureMove = destMap.get(key)?.[0];
+            const captureMove = destMap.get(key)?.[0] ?? sweepMap.get(key);
             const isCaptureTarget = Boolean(captureMove);
 
             // Brax restricted piece

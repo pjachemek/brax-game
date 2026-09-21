@@ -55,8 +55,10 @@ export interface GameModeInfo {
 
 export interface MoveOutcome {
   snapshot: GameSnapshot;
-  /** Piece captured by the move just applied, if any. */
+  /** First piece captured by the move just applied, if any. */
   capturedPieceId: string | null;
+  /** Every piece captured by the move, in travel order (a distance 2 move can take two). */
+  capturedPieceIds: string[];
   /** True when the applied move declared Brax and enforcement is now active. */
   braxCalled: boolean;
   /** Pieces the opponent is now forced to move, when Brax is active. */

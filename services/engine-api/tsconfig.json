@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "paths": {
+      "@brax/engine": ["../../packages/engine/src/index.ts"],
+      "@brax/engine/*": ["../../packages/engine/src/*"]
+    }
+  },
+  "include": ["src", "../../packages/engine/src"]
+}

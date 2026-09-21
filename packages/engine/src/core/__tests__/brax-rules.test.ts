@@ -233,6 +233,37 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     expect(stateAfterEscape.activeBrax).toBeNull();
   });
 
+  it('3b. refuses Brax for a move whose piece creates no threat, even while an older threat stands', () => {
+    const state = createEmptyTestState();
+
+    // R2 already threatens B1 - that threat was established on an earlier turn.
+    state.board['2,0'] = { id: 'R2', color: 'RED', side: 'PLAIN' };
+    state.board['3,1'] = { id: 'B1', color: 'BLUE', side: 'PLAIN' };
+    // R1 sits far away and cannot reach any BLUE piece.
+    state.board['0,6'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
+    state.board['7,7'] = { id: 'B2', color: 'BLUE', side: 'PLAIN' };
+
+    // The standing threat must not be replayable by moving an unrelated piece.
+    const r1Moves = engine.getValidMoves(state, 'R1');
+    expect(r1Moves.length).toBeGreaterThan(0);
+    expect(r1Moves.some((m) => m.callBrax === true)).toBe(false);
+
+    const declaringMove: MoveAction = {
+      pieceId: 'R1',
+      to: r1Moves[0].to,
+      mid: r1Moves[0].mid,
+      callBrax: true,
+    };
+
+    const validation = engine.validateMove(state, declaringMove);
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toContain('does not create a new threat');
+
+    // Played plainly the move is legal, and it leaves no Brax enforcement behind.
+    const next = engine.applyMove(state, { ...declaringMove, callBrax: false });
+    expect(next.activeBrax).toBeNull();
+  });
+
   it('4. executes capture at destination node P2 during distance 2 move', () => {
     const state = createEmptyTestState();
 

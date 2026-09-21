@@ -33,6 +33,7 @@ import {
 import {
   calculateThreats,
   canPlayerCallBrax,
+  getThreatsCreatedByMove,
   getUniqueThreatenedPieceIds,
   isEndgame1v2,
 } from '../threats.ts';
@@ -101,7 +102,12 @@ export class TwoPlayerClassicMode implements BraxGameMode {
   public getTurnOrder(state: GameState): PlayerTurnContext {
     const activePlayer = state.turn;
     const currentThreats = calculateThreats(state, activePlayer, this.boardGraph);
-    const canBrax = canPlayerCallBrax(state, activePlayer, currentThreats).allowed;
+
+    // Brax is declared with a move, so "can I Brax this turn?" means "does the
+    // active player have any legal move that creates a new threat?" - not
+    // "is anything threatened right now", which would still be true for a
+    // threat established on an earlier turn.
+    const canBrax = this.hasBraxableMove(state);
 
     const mustMovePieceIds =
       state.activeBrax !== null && state.activeBrax.victimColor === activePlayer
@@ -128,7 +134,8 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     if (move.callBrax) {
       const simulatedNextState = this.simulateMoveWithoutBrax(state, baseValidation.path!, move.pieceId);
       const threatsAfterMove = calculateThreats(simulatedNextState, state.turn, this.boardGraph);
-      const braxCheck = canPlayerCallBrax(state, state.turn, threatsAfterMove);
+      const newThreats = getThreatsCreatedByMove(threatsAfterMove, move.pieceId);
+      const braxCheck = canPlayerCallBrax(state, state.turn, newThreats);
 
       if (!braxCheck.allowed) {
         return {
@@ -187,15 +194,18 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       movingPlayer,
       this.boardGraph
     );
+    // Only the threats the moved piece creates can be declared, and only those
+    // pieces may be forced to answer the declaration.
+    const newThreats = getThreatsCreatedByMove(threatsAfterMove, movingPiece.id);
 
     // 4. Handle Brax state machine
     let newActiveBrax = null;
     const newLastBraxCallTurn = { ...state.lastBraxCallTurn };
 
     if (move.callBrax) {
-      const braxCheck = canPlayerCallBrax(state, movingPlayer, threatsAfterMove);
+      const braxCheck = canPlayerCallBrax(state, movingPlayer, newThreats);
       if (braxCheck.allowed) {
-        const uniqueThreatenedIds = getUniqueThreatenedPieceIds(threatsAfterMove);
+        const uniqueThreatenedIds = getUniqueThreatenedPieceIds(newThreats);
         newActiveBrax = {
           callerColor: movingPlayer,
           victimColor: nextPlayer,
@@ -367,7 +377,8 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       // Check if player can call Brax with this move
       const simulated = this.simulateMoveWithoutBrax(state, path, pieceId);
       const threatsAfter = calculateThreats(simulated, state.turn, this.boardGraph);
-      const braxCheck = canPlayerCallBrax(state, state.turn, threatsAfter);
+      const newThreats = getThreatsCreatedByMove(threatsAfter, pieceId);
+      const braxCheck = canPlayerCallBrax(state, state.turn, newThreats);
 
       // Base move without Brax
       validMoves.push({
@@ -389,6 +400,22 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     }
 
     return validMoves;
+  }
+
+  /**
+   * True when at least one legal move of the active player would create a new
+   * threat, i.e. when Brax can still be earned this turn.
+   */
+  private hasBraxableMove(state: GameState): boolean {
+    if (state.result !== null) return false;
+
+    for (const piece of Object.values(state.board)) {
+      if (!piece || piece.color !== state.turn) continue;
+      const moves = this.getValidMoves(state, piece.id);
+      if (moves.some((m) => m.callBrax === true)) return true;
+    }
+
+    return false;
   }
 
   private simulateMoveWithoutBrax(

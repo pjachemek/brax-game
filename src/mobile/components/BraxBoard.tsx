@@ -2,20 +2,47 @@
  * Brax Mobile UI - Responsive 9x9 Game Board Component (React Native SVG)
  * Renders the 9x9 Brax grid, colored orthogonal edges, starting rank labels 1..7,
  * 81 touch-target intersection nodes, pieces, and valid move highlights.
+ *
+ * A move can be made either way round: tap the piece then tap the target, or
+ * drag the piece onto the target. Both funnel into the same two store actions.
  */
 
-import React, { useMemo } from 'react';
-import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { PanResponder, Platform, View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
 import { useGameStore } from '../store/useGameStore.ts';
+import { BOARD_SURFACE, PLAYER_PALETTE, SIGNAL } from '../theme.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
 import { useFlash, usePulse } from '../hooks/animations.ts';
-import { CANONICAL_BRAX_BOARD } from '../../engine/board.ts';
-import { NodeCoord, Piece } from '../../engine/types.ts';
-import { BOARD_SIZE, areCoordsEqual } from '../../engine/geometry.ts';
+import { BOARD_SIZE, CANONICAL_BRAX_BOARD, areCoordsEqual } from '@brax/engine/view';
+import type { NodeCoord, Piece } from '@brax/engine/view';
 
 export interface BraxBoardProps {
   size?: number;
+}
+
+/**
+ * On touch screens the browser would otherwise pan the page when a drag starts
+ * on the board, stealing the gesture from the responder. Chess-style boards do
+ * the same: the board itself is not a scroll surface, the space around it is.
+ */
+const WEB_DRAG_SURFACE = Platform.OS === 'web' ? ({ touchAction: 'none' } as never) : null;
+
+/** Movement, in px, before a press is treated as a drag rather than a tap. */
+const DRAG_THRESHOLD = 6;
+/** How long after a drop a press is ignored, so the release is not also a tap. */
+const PRESS_SUPPRESSION_MS = 250;
+
+interface DragState {
+  pieceId: string;
+  /** Square the piece was lifted from. */
+  from: NodeCoord;
+  /** That square in board pixels — the origin every gesture delta is added to. */
+  originX: number;
+  originY: number;
+  /** Current position of the dragged piece, in board pixels. */
+  x: number;
+  y: number;
 }
 
 export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
@@ -41,8 +68,10 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
   // land on the board's own border at smaller sizes, striking the digits through.
   const boardSize = availableWidth;
   const labelFontSize = Math.max(9, boardSize * 0.028);
-  const labelInset = 6; // gap between a label and the board's outer edge
-  const labelBand = labelFontSize + labelInset + 2;
+  const labelInset = 6; // clear space on either side of a label within its band
+  // The band reserved at the top and bottom edge for the rank labels. Labels are
+  // centred in it, so it has to hold the digits plus the inset twice over.
+  const labelBand = labelFontSize + 2 * labelInset;
   const padding = labelBand + boardSize * 0.045;
   const innerGridSize = boardSize - 2 * padding;
   const cellSize = innerGridSize / 8;
@@ -63,6 +92,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
   // Map of valid move destinations for quick lookup
   const destMap = useMemo(() => {
     const map = new Map<string, { to: NodeCoord; isCapture: boolean }>();
+    if (!gameState) return map;
     for (const move of validMoves) {
       const key = `${move.to.x},${move.to.y}`;
       const targetPiece = gameState.board[key];
@@ -70,15 +100,15 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
       map.set(key, { to: move.to, isCapture });
     }
     return map;
-  }, [validMoves, gameState.board, gameState.turn]);
+  }, [validMoves, gameState?.board, gameState?.turn]);
 
   // Set of threatened piece IDs (if under Brax or threat)
   const threatenedIds = useMemo(() => {
-    if (gameState.activeBrax && gameState.activeBrax.victimColor === gameState.turn) {
+    if (gameState?.activeBrax && gameState.activeBrax.victimColor === gameState.turn) {
       return new Set(gameState.activeBrax.threatenedPieceIds);
     }
     return new Set<string>();
-  }, [gameState.activeBrax, gameState.turn]);
+  }, [gameState?.activeBrax, gameState?.turn]);
 
   const allEdges = useMemo(() => CANONICAL_BRAX_BOARD.getAllEdges(), []);
 
@@ -93,8 +123,163 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     return nodes;
   }, []);
 
+  // Drag and drop.
+  //
+  // The gesture is assembled from two halves, each chosen so it needs nothing
+  // platform-specific:
+  //  - *which* piece was grabbed comes from that piece's own onPressIn, so the
+  //    start of the gesture needs no hit-testing;
+  //  - *where it went* is the gesture's dx/dy added to that piece's own square,
+  //    so no screen-to-board mapping is needed either — which matters, because
+  //    the board is scrollable and its position on screen is not fixed.
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const pressedPieceRef = useRef<{ id: string; coord: NodeCoord } | null>(null);
+  const dragRef = useRef<DragState | null>(null);
+  dragRef.current = drag;
+  // A drop lands as a press too on some platforms; this swallows that one press.
+  const suppressPressUntilRef = useRef(0);
+  // Selecting a piece is a round trip to the engine, so a fast drag can be
+  // released before its legal moves have even arrived. The drop waits on this.
+  const selectionRef = useRef<Promise<void> | null>(null);
+
+  /** Nearest intersection to a point in board pixels, or null if off the grid. */
+  const pxToCoord = (x: number, y: number): NodeCoord | null => {
+    const col = Math.round((x - padding) / cellSize);
+    const row = Math.round((y - padding) / cellSize);
+    if (col < 0 || col >= BOARD_SIZE || row < 0 || row >= BOARD_SIZE) return null;
+    return { x: col, y: BOARD_SIZE - 1 - row };
+  };
+
+  // The responder is built once, so it reads the current render's values through
+  // a ref rather than closing over stale ones.
+  const liveRef = useRef<{
+    gameState: typeof gameState;
+    selectedPieceId: string | null;
+    coordToPx: typeof coordToPx;
+    pxToCoord: typeof pxToCoord;
+    selectPiece: typeof selectPiece;
+    selectDestination: typeof selectDestination;
+  }>(null!);
+  liveRef.current = {
+    gameState,
+    selectedPieceId,
+    coordToPx,
+    pxToCoord,
+    selectPiece,
+    selectDestination,
+  };
+
+  const endDrag = useCallback(() => {
+    pressedPieceRef.current = null;
+    suppressPressUntilRef.current = Date.now() + PRESS_SUPPRESSION_MS;
+    setDrag(null);
+  }, []);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        // Taps must keep reaching the pieces' own press handlers, so the board
+        // claims the gesture only once it is unmistakably a drag.
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_evt, gesture) => {
+          const pressed = pressedPieceRef.current;
+          if (!pressed) return false;
+          if (Math.abs(gesture.dx) + Math.abs(gesture.dy) < DRAG_THRESHOLD) return false;
+
+          const live = liveRef.current.gameState;
+          if (!live || live.result !== null) return false;
+
+          // Only the side to move drags. An opponent's piece stays tappable,
+          // which is how the board offers it as a capture target.
+          const piece = live.board[`${pressed.coord.x},${pressed.coord.y}`];
+          return Boolean(piece && piece.color === live.turn);
+        },
+        onPanResponderGrant: () => {
+          const pressed = pressedPieceRef.current;
+          if (!pressed) return;
+
+          const origin = liveRef.current.coordToPx(pressed.coord);
+          setDrag({
+            pieceId: pressed.id,
+            from: pressed.coord,
+            originX: origin.cx,
+            originY: origin.cy,
+            x: origin.cx,
+            y: origin.cy,
+          });
+
+          // Ask for the piece's legal moves now, so the targets are already lit
+          // while the player is still looking for one. Selecting the piece that
+          // is already selected would toggle it off, hence the guard.
+          selectionRef.current =
+            liveRef.current.selectedPieceId === pressed.id
+              ? Promise.resolve()
+              : liveRef.current.selectPiece(pressed.id);
+        },
+        onPanResponderMove: (_evt, gesture) => {
+          setDrag((current) =>
+            current
+              ? { ...current, x: current.originX + gesture.dx, y: current.originY + gesture.dy }
+              : null
+          );
+        },
+        // Once the board owns the drag it keeps it: an enclosing ScrollView
+        // deciding mid-gesture that it would rather scroll would drop the piece.
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: (_evt, gesture) => {
+          const dropped = dragRef.current;
+          endDrag();
+          if (!dropped) return;
+
+          const target = liveRef.current.pxToCoord(
+            dropped.originX + gesture.dx,
+            dropped.originY + gesture.dy
+          );
+
+          // Dropped off the board or back where it started: the piece returns
+          // home but stays selected, so the move can still be finished by tap.
+          if (!target || areCoordsEqual(target, dropped.from)) return;
+
+          void (async () => {
+            await selectionRef.current;
+            // The selection can be refused — Brax enforcement, or a piece with
+            // no legal moves — in which case it never became the selected piece
+            // and the shake has already said why.
+            if (useGameStore.getState().selectedPieceId !== dropped.pieceId) return;
+            await liveRef.current.selectDestination(target);
+          })();
+        },
+        onPanResponderTerminate: () => endDrag(),
+      }),
+    [endDrag]
+  );
+
+  /** True while a press should be ignored because it is a drop's aftermath. */
+  const pressSuppressed = () => Date.now() < suppressPressUntilRef.current;
+
+  // The destination the dragged piece is currently over, if it is a legal one.
+  const hoverKey = useMemo(() => {
+    if (!drag) return null;
+    const over = pxToCoord(drag.x, drag.y);
+    if (!over) return null;
+    const key = `${over.x},${over.y}`;
+    return destMap.has(key) ? key : null;
+  }, [drag, destMap, padding, cellSize]);
+
+  // The session is established asynchronously, so there is a beat before the
+  // first position arrives. All hooks above run unconditionally to keep their
+  // order stable across that transition.
+  if (!gameState) {
+    return <View style={[styles.container, { width: boardSize, height: boardSize }]} />;
+  }
+
+  const draggedPiece = drag ? gameState.board[`${drag.from.x},${drag.from.y}`] : null;
+
   return (
-    <View style={[styles.container, { width: boardSize, height: boardSize }]}>
+    <View
+      style={[styles.container, { width: boardSize, height: boardSize }, WEB_DRAG_SURFACE]}
+      {...panResponder.panHandlers}
+    >
       <Svg width={boardSize} height={boardSize}>
         {/* Background Board Surface */}
         <Rect
@@ -103,7 +288,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
           width={boardSize - 4}
           height={boardSize - 4}
           rx={16}
-          fill="#FFFDF7"
+          fill={BOARD_SURFACE}
           stroke="#E2E8F0"
           strokeWidth={2}
         />
@@ -112,8 +297,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
         {allEdges.map((edge) => {
           const fromPt = coordToPx(edge.from);
           const toPt = coordToPx(edge.to);
-          const isRedEdge = edge.color === 'RED';
-          const strokeColor = isRedEdge ? '#EF4444' : '#3B82F6';
+          const strokeColor = PLAYER_PALETTE[edge.color].line;
 
           return (
             <G key={`edge-${edge.from.x},${edge.from.y}-${edge.to.x},${edge.to.y}`}>
@@ -132,9 +316,11 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
 
         {/* Starting Ranks Labels (1..7 on Nodes B..H along both home ranks).
             BLUE's home rank (y=8) is drawn at the top, RED's (y=0) at the bottom.
-            Both are anchored to the board's edge rather than offset from the node,
-            so they sit in the reserved label band at any board size. SVG text is
-            positioned by its baseline, hence the +labelFontSize at the top. */}
+            Both are centred in the reserved label band rather than offset from the
+            node, so they clear both the board's rounded border and the outermost
+            grid line at any board size. `y` is the text's vertical centre, which
+            is what alignmentBaseline="middle" asks for — anchoring digits by their
+            baseline instead left them sitting on the bottom border. */}
         {[1, 2, 3, 4, 5, 6, 7].map((num) => {
           const { cx } = coordToPx({ x: num, y: 0 });
 
@@ -143,8 +329,9 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
               {/* Top edge (Blue home rank) subtle starting number label */}
               <SvgText
                 x={cx}
-                y={labelInset + labelFontSize}
+                y={labelBand / 2}
                 textAnchor="middle"
+                alignmentBaseline="middle"
                 fontSize={labelFontSize}
                 fontWeight="bold"
                 fill="#94A3B8"
@@ -155,8 +342,9 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
               {/* Bottom edge (Red home rank) subtle starting number label */}
               <SvgText
                 x={cx}
-                y={boardSize - labelInset}
+                y={boardSize - labelBand / 2}
                 textAnchor="middle"
+                alignmentBaseline="middle"
                 fontSize={labelFontSize}
                 fontWeight="bold"
                 fill="#94A3B8"
@@ -209,7 +397,14 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
               isCaptureTarget={isCaptureTarget}
               isBraxRestricted={isBraxRestricted}
               shakeNonce={piece.id === rejectedPieceId ? rejectionNonce : 0}
-              onPress={() => selectPiece(piece.id)}
+              isDragging={drag?.pieceId === piece.id}
+              onPress={() => {
+                if (pressSuppressed()) return;
+                void selectPiece(piece.id);
+              }}
+              onPressIn={() => {
+                pressedPieceRef.current = { id: piece.id, coord: { x, y } };
+              }}
             />
           );
         })}
@@ -220,11 +415,15 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
             key,
             ...coordToPx(dest.to),
             isCapture: dest.isCapture,
-            onPress: () => selectDestination(dest.to),
+            onPress: () => {
+              if (pressSuppressed()) return;
+              void selectDestination(dest.to);
+            },
           }))}
           cellSize={cellSize}
           pieceRadius={pieceRadius}
           hintNonce={targetHintNonce}
+          hoverKey={hoverKey}
         />
 
         {/* Touch Target Layer for 81 Intersections (Guarantees responsive touch everywhere) */}
@@ -245,15 +444,41 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
                 r={cellSize * 0.42}
                 fill="transparent"
                 onPress={() => {
+                  if (pressSuppressed()) return;
                   // If user clicks an empty node while a piece is selected, check or unselect
                   if (selectedPieceId) {
-                    selectDestination(coord);
+                    void selectDestination(coord);
                   }
                 }}
               />
             </G>
           );
         })}
+
+        {/* Drag Layer: the lifted piece, drawn above everything it passes over,
+            plus a marker on the square it came from so the position still reads. */}
+        {drag && draggedPiece && (
+          <G>
+            <Circle
+              cx={drag.originX}
+              cy={drag.originY}
+              r={pieceRadius * 0.85}
+              fill="none"
+              stroke={PLAYER_PALETTE[draggedPiece.color].line}
+              strokeWidth={1.5}
+              strokeDasharray="3,3"
+              strokeOpacity={0.8}
+            />
+            <PieceRenderer
+              piece={draggedPiece}
+              cx={drag.x}
+              cy={drag.y}
+              radius={pieceRadius * 1.15}
+              isSelected
+              isThreatened={threatenedIds.has(draggedPiece.id)}
+            />
+          </G>
+        )}
       </Svg>
     </View>
   );
@@ -277,7 +502,9 @@ const MoveTargetsLayer: React.FC<{
   cellSize: number;
   pieceRadius: number;
   hintNonce: number;
-}> = ({ destinations, cellSize, pieceRadius, hintNonce }) => {
+  /** Destination a dragged piece is currently hovering, drawn as armed. */
+  hoverKey: string | null;
+}> = ({ destinations, cellSize, pieceRadius, hintNonce, hoverKey }) => {
   const phase = usePulse(destinations.length > 0);
   const flash = useFlash(hintNonce);
   // 0..1 triangle wave: a soft breathe rather than a hard blink.
@@ -290,7 +517,15 @@ const MoveTargetsLayer: React.FC<{
 
   return (
     <G>
-      {destinations.map((dest) => (
+      {destinations.map((dest) => {
+        // A hovered target is held open and solid rather than breathing: the
+        // piece is over it, so it reads as "release here" instead of "consider me".
+        const isHovered = dest.key === hoverKey;
+        const scale = isHovered ? 1.3 : ringScale;
+        const opacity = isHovered ? 1 : ringOpacity;
+        const width = isHovered ? ringWidth + 1.5 : ringWidth;
+
+        return (
         <G key={`dest-${dest.key}`} onPress={dest.onPress}>
           {/* Invisible Large Hit Area */}
           <Circle cx={dest.cx} cy={dest.cy} r={cellSize * 0.46} fill="transparent" />
@@ -301,19 +536,19 @@ const MoveTargetsLayer: React.FC<{
               <Circle
                 cx={dest.cx}
                 cy={dest.cy}
-                r={pieceRadius * 1.32 * ringScale}
+                r={pieceRadius * 1.32 * scale}
                 fill="none"
-                stroke="#EF4444"
-                strokeWidth={ringWidth}
-                strokeOpacity={ringOpacity}
-                strokeDasharray="4,3"
+                stroke={SIGNAL.capture}
+                strokeWidth={width}
+                strokeOpacity={opacity}
+                strokeDasharray={isHovered ? undefined : '4,3'}
               />
               <Circle
                 cx={dest.cx}
                 cy={dest.cy}
                 r={pieceRadius * 0.9}
-                fill="#EF4444"
-                fillOpacity={0.15 + wave * 0.2}
+                fill={SIGNAL.capture}
+                fillOpacity={isHovered ? 0.45 : 0.15 + wave * 0.2}
               />
             </G>
           ) : (
@@ -322,23 +557,24 @@ const MoveTargetsLayer: React.FC<{
               <Circle
                 cx={dest.cx}
                 cy={dest.cy}
-                r={cellSize * 0.32 * ringScale}
+                r={cellSize * 0.32 * scale}
                 fill="none"
-                stroke="#10B981"
-                strokeWidth={ringWidth}
-                strokeOpacity={ringOpacity}
+                stroke={SIGNAL.select}
+                strokeWidth={width}
+                strokeOpacity={opacity}
               />
               <Circle
                 cx={dest.cx}
                 cy={dest.cy}
-                r={cellSize * 0.12}
-                fill="#10B981"
-                fillOpacity={ringOpacity}
+                r={isHovered ? cellSize * 0.22 : cellSize * 0.12}
+                fill={SIGNAL.select}
+                fillOpacity={opacity}
               />
             </G>
           )}
         </G>
-      ))}
+        );
+      })}
     </G>
   );
 };

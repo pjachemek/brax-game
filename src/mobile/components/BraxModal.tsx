@@ -23,8 +23,8 @@ export const BraxModal: React.FC = () => {
     cancelPendingMove,
   } = useGameStore();
 
-  const isVisible = turnPhase === 'PENDING_BRAX_CHOICE' && pendingMove !== null;
-  const isRedTurn = gameState.turn === 'RED';
+  const isVisible = turnPhase === 'PENDING_BRAX_CHOICE' && pendingMove !== null && gameState !== null;
+  const isRedTurn = gameState?.turn === 'RED';
   const playerColorName = isRedTurn ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
 
   if (!isVisible) return null;

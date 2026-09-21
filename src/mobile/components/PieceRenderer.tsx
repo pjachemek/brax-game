@@ -6,7 +6,8 @@
 
 import React from 'react';
 import { G, Circle, Text as SvgText, Polygon } from 'react-native-svg';
-import { Piece } from '../../engine/types.ts';
+import type { Piece } from '@brax/engine/view';
+import { PLAYER_PALETTE, SIGNAL } from '../theme.ts';
 import { useShakeOffset } from '../hooks/animations.ts';
 
 export interface PieceRendererProps {
@@ -23,7 +24,12 @@ export interface PieceRendererProps {
    * restriction, no legal moves). Every change replays the shake.
    */
   shakeNonce?: number;
+  /** Lifted while this piece is being dragged: it is drawn by the drag layer instead. */
+  isDragging?: boolean;
   onPress?: () => void;
+  /** Fires on pointer-down, before any press — the board uses it to know which
+   *  piece a drag started on without doing any coordinate hit-testing. */
+  onPressIn?: () => void;
 }
 
 export const PieceRenderer: React.FC<PieceRendererProps> = ({
@@ -36,34 +42,35 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
   isCaptureTarget = false,
   isBraxRestricted = false,
   shakeNonce = 0,
+  isDragging = false,
   onPress,
+  onPressIn,
 }) => {
   const shakeOffset = useShakeOffset(shakeNonce, Math.max(4, radius * 0.45));
   const isShaking = shakeOffset !== 0;
-  const isRed = piece.color === 'RED';
-  const fillColor = isRed ? '#DC2626' : '#2563EB';
+  const palette = PLAYER_PALETTE[piece.color];
+  const fillColor = palette.piece;
   const strokeColor = isCaptureTarget
-    ? '#EF4444'
+    ? SIGNAL.capture
     : isSelected
-    ? '#10B981'
-    : isRed
-    ? '#991B1B'
-    : '#1E40AF';
-  const innerRimColor = isRed ? '#FCA5A5' : '#BFDBFE';
+    ? SIGNAL.select
+    : palette.rim;
+  const innerRimColor = palette.innerRim;
 
   return (
     <G
       x={cx + shakeOffset}
       y={cy}
-      opacity={isBraxRestricted ? 0.45 : 1}
+      opacity={isDragging ? 0.25 : isBraxRestricted ? 0.45 : 1}
       onPress={onPress}
+      onPressIn={onPressIn}
     >
       {/* Refusal Indicator (Amber Ring, only while the shake plays) */}
       {isShaking && (
         <Circle
           r={radius * 1.45}
           fill="none"
-          stroke="#F59E0B"
+          stroke={SIGNAL.warn}
           strokeWidth={3}
         />
       )}
@@ -73,7 +80,7 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
         <Circle
           r={radius * 1.35}
           fill="none"
-          stroke="#F59E0B"
+          stroke={SIGNAL.warn}
           strokeWidth={2.5}
           strokeDasharray="4,3"
         />
@@ -84,7 +91,7 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
         <Circle
           r={radius * 1.25}
           fill="none"
-          stroke="#10B981"
+          stroke={SIGNAL.select}
           strokeWidth={3}
         />
       )}
@@ -94,7 +101,7 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
         <Circle
           r={radius * 1.3}
           fill="none"
-          stroke="#EF4444"
+          stroke={SIGNAL.capture}
           strokeWidth={3}
           strokeDasharray="4,2"
         />

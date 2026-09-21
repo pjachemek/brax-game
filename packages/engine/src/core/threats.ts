@@ -78,6 +78,23 @@ export function calculateThreats(
 }
 
 /**
+ * Returns the threats that the piece which has just moved creates from its new
+ * position.
+ *
+ * Brax is declared on a move that *creates* a threat ("po ruchu stwarzającym
+ * zagrożenie"), so only the moved piece can justify the declaration. Without
+ * this filter any threat standing anywhere on the board - including one
+ * established several turns earlier by a completely different piece - would let
+ * a player declare Brax again on every subsequent move, replaying an old Brax.
+ */
+export function getThreatsCreatedByMove(
+  threatsAfterMove: ThreatenedPieceInfo[],
+  movedPieceId: string
+): ThreatenedPieceInfo[] {
+  return threatsAfterMove.filter((threat) => threat.threatenedByPieceId === movedPieceId);
+}
+
+/**
  * Returns a unique array of threatened enemy piece IDs.
  */
 export function getUniqueThreatenedPieceIds(threats: ThreatenedPieceInfo[]): string[] {
@@ -124,7 +141,7 @@ export function isEndgame1v2(state: GameState): boolean {
 export function canPlayerCallBrax(
   state: GameState,
   playerColor: PlayerColor,
-  threatsAfterMove: ThreatenedPieceInfo[]
+  newThreats: ThreatenedPieceInfo[]
 ): { allowed: boolean; reason?: string } {
   // 1. Must be the player's turn
   if (state.turn !== playerColor) {
@@ -142,11 +159,12 @@ export function canPlayerCallBrax(
     };
   }
 
-  // 3. Must threaten at least one enemy piece
-  if (threatsAfterMove.length === 0) {
+  // 3. The move must CREATE a threat. A threat that was already on the board
+  //    before this move does not entitle the player to declare Brax again.
+  if (newThreats.length === 0) {
     return {
       allowed: false,
-      reason: 'No enemy pieces are currently threatened by your move.',
+      reason: 'This move does not create a new threat on an enemy piece.',
     };
   }
 

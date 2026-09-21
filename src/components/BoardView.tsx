@@ -5,24 +5,24 @@
  */
 
 import React, { useState } from 'react';
-import {
+import type {
   GameState,
   MoveAction,
   NodeCoord,
   Piece,
   PlayerColor,
   ThreatenedPieceInfo,
-} from '../engine/types.ts';
+} from '@brax/engine/view';
 import {
   BOARD_SIZE,
+  CANONICAL_BRAX_BOARD,
   COLUMN_LABELS,
   ROW_LABELS,
-  coordToKey,
   areCoordsEqual,
   coordToAlgebraic,
-} from '../engine/geometry.ts';
-import { CANONICAL_BRAX_BOARD } from '../engine/board.ts';
-import { getPieceAt } from '../engine/movement.ts';
+  coordToKey,
+  getPieceAt,
+} from '@brax/engine/view';
 
 interface BoardViewProps {
   state: GameState;

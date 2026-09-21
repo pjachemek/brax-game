@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { runInBrowserTestSuite, TestSuiteRunResult } from '../engine/test-runner.ts';
+import { runInBrowserTestSuite, type TestSuiteRunResult } from '@brax/engine';
 import { CheckCircle2, XCircle, Play, RefreshCw, Terminal, Clock, ShieldCheck } from 'lucide-react';
 
 export const TestRunnerView: React.FC = () => {

@@ -18,11 +18,16 @@ export const Svg: React.FC<any> = ({ width, height, viewBox, style, children, ..
   </svg>
 );
 
-export const G: React.FC<any> = ({ x, y, opacity, onPress, onClick, children, ...rest }) => (
+// `onPressIn` fires the moment the pointer goes down, before any click: it is
+// what lets a drag begin on the element that was actually grabbed. React Native
+// SVG shapes support it natively, so callers can use it on both platforms.
+export const G: React.FC<any> = ({ x, y, opacity, onPress, onPressIn, onClick, children, ...rest }) => (
   <g
     transform={x !== undefined || y !== undefined ? `translate(${x || 0}, ${y || 0})` : undefined}
     opacity={opacity}
     onClick={onPress || onClick}
+    onMouseDown={onPressIn}
+    onTouchStart={onPressIn}
     style={{ cursor: onPress || onClick ? 'pointer' : 'default' }}
     {...rest}
   >
@@ -43,7 +48,7 @@ export const Line: React.FC<any> = ({ x1, y1, x2, y2, stroke, strokeWidth, strok
   />
 );
 
-export const Circle: React.FC<any> = ({ cx, cy, r, fill, stroke, strokeWidth, strokeDasharray, strokeOpacity, fillOpacity, onPress, onClick, ...rest }) => (
+export const Circle: React.FC<any> = ({ cx, cy, r, fill, stroke, strokeWidth, strokeDasharray, strokeOpacity, fillOpacity, onPress, onPressIn, onClick, ...rest }) => (
   <circle
     cx={cx}
     cy={cy}
@@ -55,6 +60,8 @@ export const Circle: React.FC<any> = ({ cx, cy, r, fill, stroke, strokeWidth, st
     strokeOpacity={strokeOpacity}
     fillOpacity={fillOpacity}
     onClick={onPress || onClick}
+    onMouseDown={onPressIn}
+    onTouchStart={onPressIn}
     style={{ cursor: onPress || onClick ? 'pointer' : 'inherit' }}
     {...rest}
   />
@@ -75,7 +82,21 @@ export const Rect: React.FC<any> = ({ x, y, width, height, rx, ry, fill, stroke,
   />
 );
 
-export const Text: React.FC<any> = ({ x, y, textAnchor, fontSize, fontWeight, fill, children, ...rest }) => (
+// `alignmentBaseline` decides what `y` means. It defaults to "middle" (y is the
+// text's vertical centre) because that is what the callers here want and what
+// they were written against; passing it explicitly lets a caller ask for the SVG
+// default of baseline positioning instead.
+export const Text: React.FC<any> = ({
+  x,
+  y,
+  textAnchor,
+  fontSize,
+  fontWeight,
+  fill,
+  alignmentBaseline,
+  children,
+  ...rest
+}) => (
   <text
     x={x}
     y={y}
@@ -83,7 +104,7 @@ export const Text: React.FC<any> = ({ x, y, textAnchor, fontSize, fontWeight, fi
     fontSize={fontSize}
     fontWeight={fontWeight}
     fill={fill}
-    dominantBaseline="middle"
+    dominantBaseline={alignmentBaseline || 'middle'}
     {...rest}
   >
     {children}

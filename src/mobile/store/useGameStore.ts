@@ -1,18 +1,61 @@
 /**
  * Brax Mobile UI - Zustand Game Store
- * Manages game state, selection, valid moves, turn phases, and Brax choice dialogs.
- * Completely decoupled from rendering, ensuring high portability across React Native & Web.
+ *
+ * Holds the *interaction* state (selection, turn phase, feedback) and a
+ * projection of a server-authoritative session. It owns no rules: legality,
+ * Brax eligibility, capture resolution, victory and undo all come back from the
+ * BraxEngineClient, which may be running in-process or in the hosted service.
+ *
+ * Consequences of that split, visible throughout this file:
+ *  - every action is async and guarded by `isBusy` so a slow engine cannot be
+ *    raced by a second tap;
+ *  - the local `gameState` is a cache to render from, never a source of truth —
+ *    moves are sent with the revision they were decided on, and a conflict
+ *    re-pulls the canonical snapshot instead of guessing.
  */
 
 import { create } from 'zustand';
+import type { MoveOptionsResult } from '@brax/engine';
+import { areCoordsEqual, findPieceCoord, isEngineError } from '@brax/engine/view';
+import type {
+  GameSnapshot,
+  GameState,
+  MoveAction,
+  MoveOutcome,
+  NodeCoord,
+} from '@brax/engine/view';
+
 import { GameStoreState, TurnPhase } from '../types.ts';
-import { GameState, MoveAction, NodeCoord, Piece } from '../../engine/types.ts';
-import { defaultBraxEngine } from '../../engine/engine.ts';
-import { findPieceCoord } from '../../engine/movement.ts';
-import { areCoordsEqual } from '../../engine/geometry.ts';
+import { getEngineClient } from '../../services/engineClient.ts';
+
+/** Interaction fields reset whenever the board changes underneath the player. */
+const CLEARED_SELECTION = {
+  selectedPieceId: null,
+  validMoves: [] as MoveAction[],
+  pendingMove: null,
+  rejectedPieceId: null,
+};
 
 export const useGameStore = create<GameStoreState>((set, get) => {
-  const initialGameState = defaultBraxEngine.initGame('two_player');
+  const client = getEngineClient();
+
+  /** Folds a snapshot into the store and derives the resting turn phase. */
+  const applySnapshot = (snapshot: GameSnapshot, patch: Partial<GameStoreState> = {}) => {
+    set({
+      gameId: snapshot.gameId,
+      gameState: snapshot.state,
+      gameModeId: snapshot.modeId,
+      revision: snapshot.revision,
+      canUndo: snapshot.canUndo,
+      turnPhase: snapshot.result ? 'GAME_OVER' : 'AWAITING_SELECTION',
+      ...CLEARED_SELECTION,
+      isBusy: false,
+      connectionError: null,
+      errorMessage: null,
+      statusMessage: null,
+      ...patch,
+    });
+  };
 
   /**
    * Refuse an action and point the player at the piece responsible for it.
@@ -26,54 +69,131 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       rejectionNonce: state.rejectionNonce + 1,
     }));
 
-  return {
-    gameState: initialGameState,
+  /**
+   * Turns an engine failure into player-facing state. A rules refusal and an
+   * unreachable service are different problems and are reported differently:
+   * one is the player's move, the other is nothing they did.
+   */
+  const handleFailure = async (err: unknown, fallbackPhase: TurnPhase) => {
+    if (isEngineError(err)) {
+      if (err.code === 'TRANSPORT_ERROR') {
+        set({
+          isBusy: false,
+          connectionError: 'Brak połączenia z silnikiem gry. Spróbuj ponownie.',
+          turnPhase: fallbackPhase,
+          ...CLEARED_SELECTION,
+        });
+        return;
+      }
+
+      if (err.code === 'REVISION_CONFLICT' || err.code === 'GAME_NOT_FOUND') {
+        // Someone (or something) else advanced the game. Re-sync rather than
+        // rendering a position the server no longer agrees with.
+        set({ isBusy: false, statusMessage: 'Synchronizacja z serwerem gry...' });
+        await get().refresh();
+        return;
+      }
+
+      set({
+        isBusy: false,
+        errorMessage: err.message,
+        turnPhase: fallbackPhase,
+        ...CLEARED_SELECTION,
+      });
+      return;
+    }
+
+    set({
+      isBusy: false,
+      errorMessage: (err as Error)?.message ?? 'Nieoczekiwany błąd silnika gry.',
+      turnPhase: fallbackPhase,
+      ...CLEARED_SELECTION,
+    });
+  };
+
+  /** Applies the outcome of a completed move, including its feedback message. */
+  const applyOutcome = (outcome: MoveOutcome) => {
+    let message: string | null = null;
+    if (outcome.braxCalled) {
+      message = `Brax ogłoszony! Przeciwnik musi ruszyć zagrożonym pionkiem (${outcome.enforcedPieceIds.join(
+        ', '
+      )}).`;
+    } else if (outcome.capturedPieceId) {
+      message = `Zbicie! Pionek ${outcome.capturedPieceId} został zbity.`;
+    }
+
+    applySnapshot(outcome.snapshot, { statusMessage: message });
+  };
+
+  /** Guard for actions that need an established session. */
+  const requireGameId = (): string | null => {
+    const { gameId, isBusy } = get();
+    if (!gameId || isBusy) return null;
+    return gameId;
+  };
+
+  const store: GameStoreState = {
+    gameId: null,
+    gameState: null,
     gameModeId: 'two_player',
+    revision: 0,
+    canUndo: false,
+
     selectedPieceId: null,
     validMoves: [],
-    turnPhase: 'AWAITING_SELECTION',
+    turnPhase: 'CONNECTING',
     pendingMove: null,
+
+    isBusy: false,
+    connectionError: null,
+
     statusMessage: null,
     errorMessage: null,
     rejectedPieceId: null,
     rejectionNonce: 0,
     targetHintNonce: 0,
-    history: [],
-    canUndo: false,
 
-    initGame: (modeId = 'two_player') => {
-      const fresh = defaultBraxEngine.initGame(modeId);
-      set({
-        gameState: fresh,
-        gameModeId: modeId,
-        selectedPieceId: null,
-        validMoves: [],
-        turnPhase: 'AWAITING_SELECTION',
-        pendingMove: null,
-        statusMessage: null,
-        errorMessage: null,
-        rejectedPieceId: null,
-        history: [],
-        canUndo: false,
-      });
+    initGame: async (modeId = 'two_player') => {
+      set({ isBusy: true, turnPhase: 'CONNECTING', connectionError: null, errorMessage: null });
+      try {
+        applySnapshot(await client.createGame({ modeId }));
+      } catch (err) {
+        await handleFailure(err, 'CONNECTING');
+      }
     },
 
-    loadCustomState: (customState: GameState) => {
-      set({
-        gameState: customState,
-        gameModeId: customState.gameModeId,
-        selectedPieceId: null,
-        validMoves: [],
-        turnPhase: customState.result ? 'GAME_OVER' : 'AWAITING_SELECTION',
-        pendingMove: null,
-        statusMessage: null,
-        errorMessage: null,
-        rejectedPieceId: null,
-      });
+    attachGame: async (gameId: string) => {
+      set({ isBusy: true, turnPhase: 'CONNECTING', connectionError: null });
+      try {
+        applySnapshot(await client.getGame(gameId));
+      } catch (err) {
+        await handleFailure(err, 'CONNECTING');
+      }
     },
 
-    selectPiece: (pieceId: string) => {
+    refresh: async () => {
+      const { gameId } = get();
+      if (!gameId) return;
+      try {
+        applySnapshot(await client.getGame(gameId));
+      } catch (err) {
+        if (isEngineError(err) && err.code === 'GAME_NOT_FOUND') {
+          // The session is gone for good; start a fresh one rather than
+          // stranding the player on a board that no longer exists.
+          await get().initGame(get().gameModeId);
+          return;
+        }
+        set({
+          isBusy: false,
+          connectionError: 'Nie udało się odświeżyć stanu gry.',
+        });
+      }
+    },
+
+    selectPiece: async (pieceId: string) => {
+      const gameId = requireGameId();
       const { gameState, selectedPieceId, validMoves } = get();
+      if (!gameId || !gameState) return;
 
       if (gameState.result !== null) {
         set({ turnPhase: 'GAME_OVER' });
@@ -91,29 +211,39 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         if (selectedPieceId) {
           const captureCandidate = validMoves.find((m) => areCoordsEqual(m.to, coord));
           if (captureCandidate) {
-            get().selectDestination(coord);
+            await get().selectDestination(coord);
             return;
           }
         }
 
-        // Check if any friendly piece currently threatens this opponent piece:
-        const threats = defaultBraxEngine.getThreats(gameState, gameState.turn);
-        const attackers = threats.filter((t) => t.threatenedPieceId === pieceId);
-        if (attackers.length > 0) {
-          const autoAttackerId = attackers[0].threatenedByPieceId;
-          const attackerMoves = defaultBraxEngine.getValidMoves(gameState, autoAttackerId);
-          set({
-            selectedPieceId: autoAttackerId,
-            validMoves: attackerMoves,
-            turnPhase: 'PIECE_SELECTED',
-            errorMessage: null,
-            statusMessage: `Wybrano Twój pionek ${autoAttackerId}. Kliknij wrogiego pionka ${pieceId}, aby wykonać zbicie!`,
-          });
+        // Check if any friendly piece currently threatens this opponent piece.
+        // Threats are a rules question, so the engine answers it.
+        set({ isBusy: true });
+        try {
+          const threats = await client.getThreats(gameId, gameState.turn);
+          const attackers = threats.filter((t) => t.threatenedPieceId === pieceId);
+
+          if (attackers.length > 0) {
+            const autoAttackerId = attackers[0].threatenedByPieceId;
+            const attackerMoves = await client.getValidMoves(gameId, autoAttackerId);
+            set({
+              selectedPieceId: autoAttackerId,
+              validMoves: attackerMoves,
+              turnPhase: 'PIECE_SELECTED',
+              isBusy: false,
+              errorMessage: null,
+              statusMessage: `Wybrano Twój pionek ${autoAttackerId}. Kliknij wrogiego pionka ${pieceId}, aby wykonać zbicie!`,
+            });
+            return;
+          }
+        } catch (err) {
+          await handleFailure(err, 'AWAITING_SELECTION');
           return;
         }
 
         const myColor = gameState.turn === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
         const oppColor = piece.color === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
+        set({ isBusy: false });
         reject(pieceId, {
           statusMessage: `To jest pionek przeciwnika (${pieceId} - ${oppColor}). Twoja tura: ${myColor}. Wybierz swój pionek.`,
           errorMessage: null,
@@ -123,16 +253,13 @@ export const useGameStore = create<GameStoreState>((set, get) => {
 
       // If clicked on currently selected friendly piece, deselect it
       if (selectedPieceId === pieceId) {
-        set({
-          selectedPieceId: null,
-          validMoves: [],
-          turnPhase: 'AWAITING_SELECTION',
-          statusMessage: null,
-        });
+        get().unselectPiece();
         return;
       }
 
-      // Wymuszenie ruchu (Braxed): Check if current player is under Brax enforcement
+      // Wymuszenie ruchu (Braxed): Check if current player is under Brax enforcement.
+      // The enforcement lives in the state the engine returned, so this is a read,
+      // not a second opinion about the rules.
       const activeBrax = gameState.activeBrax;
       if (activeBrax && activeBrax.victimColor === gameState.turn) {
         if (!activeBrax.threatenedPieceIds.includes(pieceId)) {
@@ -146,13 +273,20 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         }
       }
 
-      // Fetch legal moves from the pure engine
-      const legalMoves = defaultBraxEngine.getValidMoves(gameState, pieceId);
+      set({ isBusy: true });
+      let legalMoves: MoveAction[];
+      try {
+        legalMoves = await client.getValidMoves(gameId, pieceId);
+      } catch (err) {
+        await handleFailure(err, 'AWAITING_SELECTION');
+        return;
+      }
 
       const selection: Partial<GameStoreState> = {
         selectedPieceId: pieceId,
         validMoves: legalMoves,
         turnPhase: 'PIECE_SELECTED' as TurnPhase,
+        isBusy: false,
         errorMessage: null,
         statusMessage:
           legalMoves.length === 0
@@ -179,34 +313,38 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       });
     },
 
-    selectDestination: (targetCoord: NodeCoord) => {
-      const { gameState, selectedPieceId, validMoves } = get();
-      if (!selectedPieceId) return;
+    selectDestination: async (targetCoord: NodeCoord) => {
+      const gameId = requireGameId();
+      const { selectedPieceId, revision } = get();
+      if (!gameId || !selectedPieceId) return;
 
-      // Find candidate moves targeting this coordinate
-      const matchingMoves = validMoves.filter((m) => areCoordsEqual(m.to, targetCoord));
-      if (matchingMoves.length === 0) {
+      set({ isBusy: true });
+
+      let options: MoveOptionsResult;
+      try {
+        options = await client.getMoveOptions(gameId, selectedPieceId, targetCoord);
+      } catch (err) {
+        await handleFailure(err, 'PIECE_SELECTED');
+        return;
+      }
+
+      if (options.moves.length === 0) {
         // Not a refusal by the piece — the player simply aimed at the wrong node,
         // so the board flashes where the legal targets actually are.
         set((state) => ({
+          isBusy: false,
           targetHintNonce: state.targetHintNonce + 1,
           errorMessage: null,
         }));
         return;
       }
 
-      const baseMove = matchingMoves[0];
+      const baseMove = options.moves[0];
 
-      // Faza "Braxing": Check if this move can legally call Brax
-      // A move can call Brax if at least one variant has callBrax === true
-      // or validateMove({ ...baseMove, callBrax: true }).valid is true
-      const canCallBrax =
-        matchingMoves.some((m) => m.callBrax === true) ||
-        defaultBraxEngine.validateMove(gameState, { ...baseMove, callBrax: true }).valid;
-
-      if (canCallBrax) {
-        // Move creates threat and Brax is allowed! Present the Brax Choice dialog
+      // Faza "Braxing": the engine already decided whether this move may declare.
+      if (options.canCallBrax) {
         set({
+          isBusy: false,
           pendingMove: baseMove,
           turnPhase: 'PENDING_BRAX_CHOICE',
           errorMessage: null,
@@ -215,131 +353,54 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         return;
       }
 
-      // Brax is not applicable; execute regular move immediately with callBrax: false
-      const actionToExecute: MoveAction = {
-        ...baseMove,
-        callBrax: false,
-      };
-
       try {
-        const val = defaultBraxEngine.validateMove(gameState, actionToExecute);
-        if (!val.valid) {
-          set({
-            errorMessage: val.reason,
-            turnPhase: 'AWAITING_SELECTION',
-            selectedPieceId: null,
-            validMoves: [],
-          });
-          return;
-        }
-
-        const nextState = defaultBraxEngine.applyMove(gameState, actionToExecute);
-        const victory = defaultBraxEngine.checkVictory(nextState);
-
-        const lastHistory = nextState.history[nextState.history.length - 1];
-        const captured = lastHistory?.capturedPiece;
-
-        set((state) => ({
-          gameState: nextState,
-          history: [...state.history, state.gameState],
-          canUndo: true,
-          selectedPieceId: null,
-          validMoves: [],
-          pendingMove: null,
-          turnPhase: victory ? 'GAME_OVER' : 'AWAITING_SELECTION',
-          errorMessage: null,
-          statusMessage: captured
-            ? `Zbicie! Pionek ${captured.id} został zbity.`
-            : null,
-        }));
-      } catch (err: any) {
-        // Safe error handling - restore UI without crashing
-        set({
-          errorMessage: err?.message || 'Błąd podczas wykonywania ruchu.',
-          selectedPieceId: null,
-          validMoves: [],
-          pendingMove: null,
-          turnPhase: 'AWAITING_SELECTION',
-        });
+        const outcome = await client.applyMove(
+          gameId,
+          { ...baseMove, callBrax: false },
+          { expectedRevision: revision }
+        );
+        applyOutcome(outcome);
+      } catch (err) {
+        await handleFailure(err, 'AWAITING_SELECTION');
       }
     },
 
-    confirmBraxChoice: (callBrax: boolean) => {
-      const { gameState, pendingMove, history } = get();
-      if (!pendingMove) return;
+    confirmBraxChoice: async (callBrax: boolean) => {
+      const gameId = requireGameId();
+      const { pendingMove, revision } = get();
+      if (!gameId || !pendingMove) return;
 
-      const finalAction: MoveAction = {
-        ...pendingMove,
-        callBrax,
-      };
+      set({ isBusy: true });
 
       try {
-        const validation = defaultBraxEngine.validateMove(gameState, finalAction);
-        if (!validation.valid) {
-          // If Brax was rejected, attempt fallback to normal move
-          if (callBrax) {
-            const fallbackAction: MoveAction = { ...pendingMove, callBrax: false };
-            const fallbackVal = defaultBraxEngine.validateMove(gameState, fallbackAction);
-            if (fallbackVal.valid) {
-              const fallbackNext = defaultBraxEngine.applyMove(gameState, fallbackAction);
-              const victory = defaultBraxEngine.checkVictory(fallbackNext);
-              set({
-                gameState: fallbackNext,
-                history: [...history, gameState],
-                canUndo: true,
-                selectedPieceId: null,
-                validMoves: [],
-                pendingMove: null,
-                turnPhase: victory ? 'GAME_OVER' : 'AWAITING_SELECTION',
-                errorMessage: null,
-                statusMessage: 'Wykonano zwykły ruch (Brax nie był dozwolony).',
-              });
-              return;
-            }
-          }
-
-          set({
-            errorMessage: validation.reason,
-            turnPhase: 'AWAITING_SELECTION',
-            pendingMove: null,
-            selectedPieceId: null,
-            validMoves: [],
-          });
+        const outcome = await client.applyMove(
+          gameId,
+          { ...pendingMove, callBrax },
+          { expectedRevision: revision }
+        );
+        applyOutcome(outcome);
+        return;
+      } catch (err) {
+        // A refused Brax declaration should not cost the player their move:
+        // fall back to the same move played plainly, if the engine allows it.
+        const braxRefused = isEngineError(err) && err.code === 'INVALID_MOVE' && callBrax;
+        if (!braxRefused) {
+          await handleFailure(err, 'AWAITING_SELECTION');
           return;
         }
 
-        const nextState = defaultBraxEngine.applyMove(gameState, finalAction);
-        const victory = defaultBraxEngine.checkVictory(nextState);
-        const lastEntry = nextState.history[nextState.history.length - 1];
-        const captured = lastEntry?.capturedPiece;
-
-        let msg: string | null = null;
-        if (callBrax && nextState.activeBrax) {
-          msg = `Brax ogłoszony! Przeciwnik musi ruszyć zagrożonym pionkiem (${nextState.activeBrax.threatenedPieceIds.join(', ')}).`;
-        } else if (captured) {
-          msg = `Zbicie! Pionek ${captured.id} został pomyślnie zbity.`;
+        try {
+          const outcome = await client.applyMove(
+            gameId,
+            { ...pendingMove, callBrax: false },
+            { expectedRevision: get().revision }
+          );
+          applySnapshot(outcome.snapshot, {
+            statusMessage: 'Wykonano zwykły ruch (Brax nie był dozwolony).',
+          });
+        } catch (fallbackErr) {
+          await handleFailure(fallbackErr, 'AWAITING_SELECTION');
         }
-
-        set({
-          gameState: nextState,
-          history: [...history, gameState],
-          canUndo: true,
-          selectedPieceId: null,
-          validMoves: [],
-          pendingMove: null,
-          turnPhase: victory ? 'GAME_OVER' : 'AWAITING_SELECTION',
-          errorMessage: null,
-          statusMessage: msg,
-        });
-      } catch (err: any) {
-        // Graceful error rollback
-        set({
-          errorMessage: err?.message || 'Błąd podczas zatwierdzania ruchu.',
-          pendingMove: null,
-          selectedPieceId: null,
-          validMoves: [],
-          turnPhase: 'AWAITING_SELECTION',
-        });
       }
     },
 
@@ -351,32 +412,67 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       });
     },
 
-    undoMove: () => {
-      const { history } = get();
-      if (history.length === 0) return;
+    undoMove: async () => {
+      const gameId = requireGameId();
+      if (!gameId || !get().canUndo) return;
 
-      const previousState = history[history.length - 1];
-      const newHistory = history.slice(0, history.length - 1);
-
-      set({
-        gameState: previousState,
-        history: newHistory,
-        canUndo: newHistory.length > 0,
-        selectedPieceId: null,
-        validMoves: [],
-        pendingMove: null,
-        turnPhase: 'AWAITING_SELECTION',
-        errorMessage: null,
-        statusMessage: 'Cofnięto ostatni ruch.',
-      });
+      set({ isBusy: true });
+      try {
+        applySnapshot(await client.undo(gameId), { statusMessage: 'Cofnięto ostatni ruch.' });
+      } catch (err) {
+        await handleFailure(err, 'AWAITING_SELECTION');
+      }
     },
 
-    resetGame: (modeId) => {
-      get().initGame(modeId || get().gameModeId);
+    resetGame: async (modeId) => {
+      const { gameId, gameModeId } = get();
+      const nextMode = modeId || gameModeId;
+
+      if (!gameId) {
+        await get().initGame(nextMode);
+        return;
+      }
+
+      set({ isBusy: true });
+      try {
+        applySnapshot(await client.resetGame(gameId, nextMode));
+      } catch (err) {
+        if (isEngineError(err) && err.code === 'GAME_NOT_FOUND') {
+          await get().initGame(nextMode);
+          return;
+        }
+        await handleFailure(err, 'AWAITING_SELECTION');
+      }
+    },
+
+    loadCustomState: async (customState: GameState) => {
+      const { gameId } = get();
+      set({ isBusy: true });
+
+      try {
+        // Without a session yet, the scenario seeds a brand new one.
+        const snapshot = gameId
+          ? await client.loadState(gameId, customState)
+          : await client.createGame({ state: customState });
+        applySnapshot(snapshot);
+      } catch (err) {
+        await handleFailure(err, 'AWAITING_SELECTION');
+      }
     },
 
     dismissError: () => {
-      set({ errorMessage: null });
+      set({ errorMessage: null, connectionError: null });
     },
   };
+
+  return store;
 });
+
+/**
+ * Opens a session so the first render has a board to draw. Kept out of the
+ * store initializer because Zustand discards state written before the creator
+ * returns; tests call it explicitly against their own client.
+ */
+export function bootstrapGameSession(modeId = 'two_player'): Promise<void> {
+  return useGameStore.getState().initGame(modeId);
+}

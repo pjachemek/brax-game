@@ -9,31 +9,38 @@ import { Layers, Code2, Smartphone, Cpu, Check, Copy } from 'lucide-react';
 export const ArchitectureView: React.FC = () => {
   const [copied, setCopied] = React.useState(false);
 
-  const integrationSnippet = `// Przykład użycia silnika Brax (np. w React Native / Node / WebView)
-import { BraxEngine, CANONICAL_BRAX_BOARD } from './src/engine';
+  const integrationSnippet = `// Integracja z silnikiem Brax (React Native / Web / Node)
+// Aplikacja nie importuje reguł — rozmawia z silnikiem przez klienta.
+import { createEngineClient } from '@brax/engine-client';
 
-// 1. Inicjalizacja bezstanowego silnika
-const engine = new BraxEngine(CANONICAL_BRAX_BOARD);
+// 1. Wybór transportu: silnik lokalny albo hostowany serwis.
+//    Zmiana transportu nie wymaga żadnej zmiany w UI.
+const engine = createEngineClient({ transport: 'local' });
+// const engine = createEngineClient({
+//   transport: 'http',
+//   baseUrl: 'https://engine.brax.example',
+// });
 
-// 2. Start nowej gry (niezmienny GameState)
-let state = engine.initGame('two_player');
+// 2. Sesja gry jest autorytatywna po stronie silnika.
+//    Klient trzyma tylko gameId i numer rewizji.
+const { gameId, state, revision } = await engine.createGame({ modeId: 'two_player' });
 
-// 3. Wyliczenie legalnych ruchów (z uwzględnieniem Brax)
-const validMoves = engine.getValidMoves(state, 'R1');
+// 3. Legalne ruchy (z uwzględnieniem wymuszeń Brax) liczy silnik.
+const validMoves = await engine.getValidMoves(gameId, 'R1');
 
-// 4. Aplikacja ruchu z opcją zawołania Brax!
-const move = {
-  pieceId: 'R1',
-  to: { x: 2, y: 1 },
-  mid: { x: 1, y: 1 }, // opcjonalny punkt pośredni dla dystansu 2
-  callBrax: true,      // gracz woła Brax przy stwarzaniu zagrożenia
-};
+// 4. Czy ten ruch pozwala zawołać Brax — to też pytanie o regułę.
+const { moves, canCallBrax } = await engine.getMoveOptions(gameId, 'R1', { x: 2, y: 1 });
 
-const nextState = engine.applyMove(state, move);
+// 5. Wykonanie ruchu. expectedRevision chroni przed nadpisaniem
+//    partii, która w międzyczasie poszła dalej (drugi tab, drugi gracz).
+const outcome = await engine.applyMove(
+  gameId,
+  { ...moves[0], callBrax: canCallBrax },
+  { expectedRevision: revision }
+);
 
-// 5. Serializacja stanu do JSON (do bazy / mostu Flutter / AsyncStorage)
-const json = engine.serialize(nextState);
-const restoredState = engine.deserialize(json);`;
+// 6. Historia i cofanie żyją w sesji, nie w aplikacji.
+const snapshot = await engine.undo(gameId);`;
 
   const copyCode = () => {
     navigator.clipboard.writeText(integrationSnippet);
@@ -54,9 +61,12 @@ const restoredState = engine.deserialize(json);`;
       </div>
 
       <p className="text-sm text-slate-600 leading-relaxed mb-6">
-        Silnik reguł Brax został zaprojektowany z rygorystycznym podziałem odpowiedzialności: warstwa
-        logiki biznesowej jest <strong>w 100% odseparowana od DOM i frameworków UI</strong>. Wszystkie struktury danych są
-        niemutowalne (<code>Object.freeze</code>) i w pełni serializowalne do czystego formatu JSON.
+        Silnik reguł Brax jest <strong>osobnym pakietem i osobnym procesem</strong>, a nie biblioteką wkompilowaną
+        w aplikację. Warstwa UI zna wyłącznie interfejs <code>BraxEngineClient</code>; pod nim stoi albo
+        silnik w tym samym procesie (<code>LocalEngineClient</code>, gra offline), albo hostowany serwis
+        (<code>HttpEngineClient</code>). Sesja gry jest autorytatywna po stronie silnika: klient nie odsyła
+        <code>GameState</code>, tylko <code>gameId</code> i numer rewizji, więc nie może przepisać planszy.
+        Wszystkie struktury danych pozostają niemutowalne i w pełni serializowalne do JSON.
       </p>
 
       {/* Grid of Key Architecture Principles */}

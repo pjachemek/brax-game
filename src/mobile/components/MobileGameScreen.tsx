@@ -11,38 +11,84 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { useGameStore } from '../store/useGameStore.ts';
+// React Native's own SafeAreaView is deprecated (and was iOS-only); the insets
+// now come from react-native-safe-area-context, which works on Android, iOS and
+// react-native-web alike.
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { PLAYER_PALETTE, SIGNAL } from '../theme.ts';
+import { useGameStore, bootstrapGameSession } from '../store/useGameStore.ts';
 import { BraxBoard } from './BraxBoard.tsx';
 import { BraxModal } from './BraxModal.tsx';
 
-export const MobileGameScreen: React.FC = () => {
+/**
+ * The screen is also the mobile app's root, and it is embedded in hosts (such as
+ * the web simulator) that provide no provider of their own, so it carries its
+ * own SafeAreaProvider rather than relying on one above it.
+ */
+export const MobileGameScreen: React.FC = () => (
+  <SafeAreaProvider>
+    <MobileGameScreenContent />
+  </SafeAreaProvider>
+);
+
+const MobileGameScreenContent: React.FC = () => {
   // The board must size itself to the space this screen actually gets, not to the
   // window: when this screen is embedded in the web simulator's phone frame, the
   // window is far wider than the frame and a window-sized board overflows it.
   const [boardWidth, setBoardWidth] = React.useState<number | null>(null);
 
   const {
+    gameId,
     gameState,
     selectedPieceId,
     turnPhase,
     statusMessage,
     errorMessage,
+    connectionError,
+    isBusy,
     canUndo,
     undoMove,
     resetGame,
     dismissError,
     unselectPiece,
+    initGame,
   } = useGameStore();
+
+  // The engine may be a hosted service, so the first position arrives after a
+  // round trip. Opening the session here (rather than at module load) keeps the
+  // screen self-sufficient wherever it is embedded, and is idempotent.
+  React.useEffect(() => {
+    if (!gameId && turnPhase === 'CONNECTING' && !isBusy) {
+      void bootstrapGameSession();
+    }
+  }, [gameId, turnPhase, isBusy]);
+
+  if (!gameState) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.connectingWrapper}>
+          <Text style={styles.connectingTitle}>BRAX</Text>
+          <Text style={styles.connectingText}>
+            {connectionError ?? 'Łączenie z silnikiem gry...'}
+          </Text>
+          {connectionError && (
+            <TouchableOpacity style={styles.gameOverBtn} onPress={() => initGame()}>
+              <Text style={styles.gameOverBtnText}>Spróbuj ponownie</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const isRedTurn = gameState.turn === 'RED';
   const isGameOver = gameState.result !== null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle="dark-content" />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -59,7 +105,7 @@ export const MobileGameScreen: React.FC = () => {
             <View
               style={[
                 styles.turnDot,
-                { backgroundColor: isRedTurn ? '#DC2626' : '#2563EB' },
+                { backgroundColor: PLAYER_PALETTE[isRedTurn ? 'RED' : 'BLUE'].piece },
               ]}
             />
             <Text style={styles.turnText}>
@@ -67,51 +113,6 @@ export const MobileGameScreen: React.FC = () => {
             </Text>
           </View>
         </View>
-
-        {/* Status Strip.
-            One slot of a fixed height, always mounted: errors, the current
-            selection and informational messages take turns in it. Banners that
-            appeared and disappeared used to push the board down and snap it back;
-            the board now stays put whatever the strip says. Brax enforcement is
-            shown on the board itself (halos on the pieces that may still move),
-            not here. */}
-        {/* <TouchableOpacity
-          style={[
-            styles.statusStrip,
-            errorMessage && styles.statusStripError,
-            !errorMessage && selectedPieceId && styles.statusStripSelected,
-          ]}
-          activeOpacity={errorMessage ? 0.8 : 1}
-          onPress={errorMessage ? dismissError : undefined}
-        >
-          {errorMessage ? (
-            <>
-              <Text style={[styles.statusStripText, styles.statusStripTextError]} numberOfLines={2}>
-                {errorMessage}
-              </Text>
-              <Text style={styles.errorDismiss}>✕</Text>
-            </>
-          ) : selectedPieceId ? (
-            <>
-              <Text style={[styles.statusStripText, styles.statusStripTextSelected]} numberOfLines={2}>
-                {statusMessage ?? (
-                  <>
-                    Wybrano pionek <Text style={styles.boldText}>{selectedPieceId}</Text> — dotknij
-                    pulsującego węzła docelowego.
-                  </>
-                )}
-              </Text>
-              <TouchableOpacity onPress={unselectPiece} style={styles.unselectBtn}>
-                <Text style={styles.unselectBtnText}>Odznacz</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <Text style={styles.statusStripText} numberOfLines={2}>
-              {statusMessage ??
-                `Dotknij swojego pionka (${isRedTurn ? 'czerwony' : 'niebieski'}), aby zobaczyć dostępne ruchy.`}
-            </Text>
-          )}
-        </TouchableOpacity> */}
 
         {/* Scoreboard & Captured Graveyard */}
         <View style={styles.scoreboard}>
@@ -123,7 +124,7 @@ export const MobileGameScreen: React.FC = () => {
             ]}
           >
             <View style={styles.playerInfoRow}>
-              <View style={[styles.playerColorCircle, { backgroundColor: '#DC2626' }]} />
+              <View style={[styles.playerColorCircle, { backgroundColor: PLAYER_PALETTE.RED.piece }]} />
               <Text style={styles.playerName}>Czerwony</Text>
             </View>
             <Text style={styles.capturedCount}>
@@ -139,7 +140,7 @@ export const MobileGameScreen: React.FC = () => {
             ]}
           >
             <View style={styles.playerInfoRow}>
-              <View style={[styles.playerColorCircle, { backgroundColor: '#2563EB' }]} />
+              <View style={[styles.playerColorCircle, { backgroundColor: PLAYER_PALETTE.BLUE.piece }]} />
               <Text style={styles.playerName}>Niebieski</Text>
             </View>
             <Text style={styles.capturedCount}>
@@ -159,18 +160,19 @@ export const MobileGameScreen: React.FC = () => {
         {/* Bottom Game Controls */}
         <View style={styles.controlsRow}>
           <TouchableOpacity
-            style={[styles.actionBtn, !canUndo && styles.disabledBtn]}
-            disabled={!canUndo}
-            onPress={undoMove}
+            style={[styles.actionBtn, (!canUndo || isBusy) && styles.disabledBtn]}
+            disabled={!canUndo || isBusy}
+            onPress={() => void undoMove()}
           >
-            <Text style={[styles.actionBtnText, !canUndo && styles.disabledBtnText]}>
+            <Text style={[styles.actionBtnText, (!canUndo || isBusy) && styles.disabledBtnText]}>
               ↩ Cofnij ruch
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionBtn, styles.resetBtn]}
-            onPress={() => resetGame()}
+            style={[styles.actionBtn, styles.resetBtn, isBusy && styles.disabledBtn]}
+            disabled={isBusy}
+            onPress={() => void resetGame()}
           >
             <Text style={styles.resetBtnText}>↺ Nowa gra</Text>
           </TouchableOpacity>
@@ -192,11 +194,18 @@ export const MobileGameScreen: React.FC = () => {
             </Text>
             <TouchableOpacity
               style={styles.gameOverBtn}
-              onPress={() => resetGame()}
+              onPress={() => void resetGame()}
             >
               <Text style={styles.gameOverBtnText}>Zagraj ponownie</Text>
             </TouchableOpacity>
           </View>
+        )}
+        {/* A lost engine connection is not a rules refusal, so it gets its own
+            banner rather than the status strip's error slot. */}
+        {connectionError && (
+          <TouchableOpacity style={styles.connectionBanner} onPress={dismissError}>
+            <Text style={styles.connectionBannerText}>{connectionError}</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
 
@@ -411,7 +420,7 @@ const styles = StyleSheet.create({
     maxWidth: 480,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#10B981',
+    borderColor: SIGNAL.select,
     borderRadius: 20,
     padding: 20,
     marginTop: 16,
@@ -454,5 +463,40 @@ const styles = StyleSheet.create({
   },
   boldText: {
     fontWeight: '700',
+  },
+  connectingWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  connectingTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: 2,
+  },
+  connectingText: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  connectionBanner: {
+    width: '100%',
+    maxWidth: 480,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+  },
+  connectionBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
   },
 });

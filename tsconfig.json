@@ -18,9 +18,36 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@brax/engine": [
+        "./packages/engine/src/index.ts"
+      ],
+      "@brax/engine/view": [
+        "./packages/engine/src/view.ts"
+      ],
+      "@brax/engine/*": [
+        "./packages/engine/src/*"
+      ],
+      "@brax/engine-client": [
+        "./packages/engine-client/src/index.ts"
+      ],
+      "@brax/engine-client/*": [
+        "./packages/engine-client/src/*"
+      ],
+      "@brax/engine-client/local": [
+        "./packages/engine-client/src/local-client.ts"
+      ],
+      "@brax/engine-client/http": [
+        "./packages/engine-client/src/http-client.ts"
       ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "packages",
+    "services",
+    "vite.config.ts"
+  ]
 }

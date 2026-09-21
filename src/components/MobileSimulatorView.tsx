@@ -25,60 +25,64 @@ const CODE_SNIPPETS: Record<string, { title: string; filename: string; language:
     title: 'Zustand Store (useGameStore.ts)',
     filename: 'src/mobile/store/useGameStore.ts',
     language: 'typescript',
-    desc: 'Zarządza stanem GameState, fazami tury (AWAITING_SELECTION, PIECE_SELECTED, PENDING_BRAX_CHOICE), walidacją ruchów oraz wywoływaniem Brax.',
+    desc: 'Trzyma stan interakcji (zaznaczenie, faza tury) i projekcję sesji z silnika. Nie zawiera reguł: legalność ruchów, prawo do Brax, zbicia, wynik i cofanie przychodzą z BraxEngineClient.',
     code: `import { create } from 'zustand';
-import { GameStoreState, TurnPhase } from '../types.ts';
-import { GameState, MoveAction, NodeCoord } from '../../engine/types.ts';
-import { defaultBraxEngine } from '../../engine/engine.ts';
-import { findPieceCoord } from '../../engine/movement.ts';
-import { areCoordsEqual } from '../../engine/geometry.ts';
+import { isEngineError } from '@brax/engine';
+import { areCoordsEqual, findPieceCoord } from '@brax/engine/view';
+import { getEngineClient } from '../../services/engineClient.ts';
+
+// Silnik może być lokalny albo hostowany — store tego nie wie.
+const client = getEngineClient();
 
 export const useGameStore = create<GameStoreState>((set, get) => ({
-  gameState: defaultBraxEngine.initGame('two_player'),
-  gameModeId: 'two_player',
+  gameId: null,          // sesja jest autorytatywna po stronie silnika
+  gameState: null,       // lokalna projekcja do renderowania
+  revision: 0,           // ochrona przed wyścigiem: z czym się zgadzamy
+  canUndo: false,        // historia żyje w sesji, nie tutaj
   selectedPieceId: null,
   validMoves: [],
-  turnPhase: 'AWAITING_SELECTION',
+  turnPhase: 'CONNECTING',
   pendingMove: null,
-  statusMessage: null,
-  errorMessage: null,
-  history: [],
-  canUndo: false,
+  isBusy: false,         // zapytanie w locie — blokuje kolejne dotknięcia
+  connectionError: null, // brak sieci to nie to samo co zły ruch
 
-  selectPiece: (pieceId: string) => {
-    const { gameState, selectedPieceId, validMoves } = get();
-    // Braxed restriction enforcement
+  initGame: async (modeId = 'two_player') => {
+    const snapshot = await client.createGame({ modeId });
+    set({ gameId: snapshot.gameId, gameState: snapshot.state, revision: snapshot.revision });
+  },
+
+  selectPiece: async (pieceId: string) => {
+    const { gameId, gameState } = get();
+    // Wymuszenie Brax odczytujemy ze stanu, który zwrócił silnik.
     const activeBrax = gameState.activeBrax;
     if (activeBrax && activeBrax.victimColor === gameState.turn) {
       if (!activeBrax.threatenedPieceIds.includes(pieceId)) {
-        set({ errorMessage: "You are Braxed! Move a threatened piece" });
+        set({ errorMessage: 'You are Braxed! Move a threatened piece' });
         return;
       }
     }
-    const legalMoves = defaultBraxEngine.getValidMoves(gameState, pieceId);
+    const legalMoves = await client.getValidMoves(gameId, pieceId);
     set({ selectedPieceId: pieceId, validMoves: legalMoves, turnPhase: 'PIECE_SELECTED' });
   },
 
-  selectDestination: (targetCoord: NodeCoord) => {
-    const { gameState, selectedPieceId, validMoves } = get();
-    const matchingMoves = validMoves.filter(m => areCoordsEqual(m.to, targetCoord));
-    const canCallBrax = matchingMoves.some(m => m.callBrax === true);
+  selectDestination: async (targetCoord: NodeCoord) => {
+    const { gameId, selectedPieceId, revision } = get();
+    // O prawo do Brax pyta się silnik — to reguła, nie heurystyka UI.
+    const { moves, canCallBrax } = await client.getMoveOptions(gameId, selectedPieceId, targetCoord);
+    if (moves.length === 0) return;
 
     if (canCallBrax) {
-      set({ pendingMove: matchingMoves[0], turnPhase: 'PENDING_BRAX_CHOICE' });
+      set({ pendingMove: moves[0], turnPhase: 'PENDING_BRAX_CHOICE' });
       return;
     }
-    // Execute normal move
-    const nextState = defaultBraxEngine.applyMove(gameState, { ...matchingMoves[0], callBrax: false });
-    set({ gameState: nextState, selectedPieceId: null, validMoves: [], turnPhase: 'AWAITING_SELECTION' });
-  },
 
-  confirmBraxChoice: (callBrax: boolean) => {
-    const { gameState, pendingMove } = get();
-    if (!pendingMove) return;
-    const nextState = defaultBraxEngine.applyMove(gameState, { ...pendingMove, callBrax });
-    set({ gameState: nextState, pendingMove: null, turnPhase: 'AWAITING_SELECTION' });
-  }
+    const outcome = await client.applyMove(
+      gameId,
+      { ...moves[0], callBrax: false },
+      { expectedRevision: revision }   // odrzuci ruch, jeśli partia poszła dalej
+    );
+    set({ gameState: outcome.snapshot.state, revision: outcome.snapshot.revision });
+  },
 }));`,
   },
   board: {

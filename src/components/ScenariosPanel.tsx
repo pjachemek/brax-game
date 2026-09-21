@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { GameScenario, getPresetScenarios } from '../engine/scenarios.ts';
+import { getPresetScenarios, type GameScenario } from '@brax/engine';
 import { Bookmark, Sparkles, ArrowRight } from 'lucide-react';
 
 interface ScenariosPanelProps {

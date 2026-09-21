@@ -3,18 +3,10 @@
  * Integrates the pure TypeScript Brax Rules Engine with an authentic, responsive interface.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  GameState,
-  MoveAction,
-  PlayerColor,
-  ThreatenedPieceInfo,
-} from './engine/types.ts';
-import { defaultBraxEngine } from './engine/engine.ts';
-import { calculateThreats, isEndgame1v2 } from './engine/threats.ts';
-import { findPieceCoord } from './engine/movement.ts';
-import { chooseBestMove } from './engine/ai.ts';
-import { GameScenario } from './engine/scenarios.ts';
+import React, { useState, useEffect } from 'react';
+import type { MoveAction, PlayerColor } from '@brax/engine/view';
+import type { GameScenario } from '@brax/engine';
+import { useBraxSession } from './hooks/useBraxSession.ts';
 import { BoardView } from './components/BoardView.tsx';
 import { TestRunnerView } from './components/TestRunnerView.tsx';
 import { ScenariosPanel } from './components/ScenariosPanel.tsx';
@@ -38,155 +30,85 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'board' | 'mobile' | 'scenarios' | 'tests' | 'architecture'>('mobile');
-  const [state, setState] = useState<GameState>(() => defaultBraxEngine.initGame('two_player'));
-  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [callBraxNextMove, setCallBraxNextMove] = useState<boolean>(true);
   const [vsBot, setVsBot] = useState<boolean>(false);
   const [botColor] = useState<PlayerColor>('BLUE');
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
-  const [stateHistory, setStateHistory] = useState<GameState[]>([]);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  // Compute valid moves for currently selected piece
-  const currentValidMoves = useMemo<MoveAction[]>(() => {
-    if (!selectedPieceId || state.result !== null) return [];
-    return defaultBraxEngine.getValidMoves(state, selectedPieceId);
-  }, [state, selectedPieceId]);
+  // The rules live behind the engine client, so the board reads a session
+  // rather than holding a GameState it is free to mutate.
+  const {
+    state,
+    canUndo,
+    isBusy,
+    connectionError,
+    statusMessage,
+    selectedPieceId,
+    currentValidMoves,
+    threats,
+    isEndgame,
+    selectPiece,
+    executeMove: applyMove,
+    playBotMove,
+    undoMove,
+    resetGame: resetSession,
+    loadState,
+    setStatusMessage,
+  } = useBraxSession('two_player');
 
-  // Compute current threats from the board
-  const threats = useMemo<ThreatenedPieceInfo[]>(() => {
-    return defaultBraxEngine.getThreats(state, state.turn);
-  }, [state]);
-
-  const opponentThreats = useMemo<ThreatenedPieceInfo[]>(() => {
-    const oppColor: PlayerColor = state.turn === 'RED' ? 'BLUE' : 'RED';
-    return defaultBraxEngine.getThreats(state, oppColor);
-  }, [state]);
-
-  const isEndgame = useMemo<boolean>(() => isEndgame1v2(state), [state]);
-
-  // Bot automated move trigger
+  // Bot automated move trigger. The move itself is chosen and played by the
+  // engine; this only decides when to ask for it.
   useEffect(() => {
-    if (vsBot && state.turn === botColor && state.result === null) {
-      const timer = setTimeout(() => {
-        const botMove = chooseBestMove(defaultBraxEngine, state, botColor);
-        if (botMove) {
-          executeMove(botMove);
-        }
-      }, 550);
-      return () => clearTimeout(timer);
-    }
-  }, [vsBot, state.turn, state.result, botColor]);
+    if (!vsBot || !state || state.turn !== botColor || state.result !== null || isBusy) return;
+    const timer = setTimeout(() => {
+      void playBotMove(botColor);
+    }, 550);
+    return () => clearTimeout(timer);
+  }, [vsBot, state?.turn, state?.result, botColor, isBusy, playBotMove, state]);
 
   const handleSelectPiece = (pieceId: string) => {
-    if (state.result !== null) return;
-
-    // Check if clicked piece is opponent's piece
-    const pieceInfo = findPieceCoord(state, pieceId);
-    if (!pieceInfo) return;
-
-    if (pieceInfo.piece.color !== state.turn) {
-      const oppColorName = pieceInfo.piece.color === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
-      const myColorName = state.turn === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
-
-      // Check if any friendly piece of the active player can capture this enemy piece
-      const currentThreats = defaultBraxEngine.getThreats(state, state.turn);
-      const threateningAttackers = currentThreats.filter((t) => t.threatenedPieceId === pieceId);
-
-      if (threateningAttackers.length > 0) {
-        // Auto-select friendly attacker piece so user immediately sees capture trajectory
-        const attackerId = threateningAttackers[0].threatenedByPieceId;
-        setSelectedPieceId(attackerId);
-        setStatusMessage(
-          `Wybrano Twój pionek ${attackerId} zagrażający pionkowi ${pieceId}. Kliknij wrogi pionek ${pieceId}, aby wykonać zbicie!`
-        );
-        return;
-      }
-
-      setStatusMessage(
-        `To jest pionek przeciwnika (${pieceId} - ${oppColorName}). Twoja tura: ${myColorName}. Wybierz swój pionek, aby wykonać ruch lub zbicie.`
-      );
-      return;
-    }
-
-    // Check if Brax enforcement is active on current player
-    if (state.activeBrax && state.activeBrax.victimColor === state.turn) {
-      if (!state.activeBrax.threatenedPieceIds.includes(pieceId)) {
-        setStatusMessage(
-          `Wymuszenie Brax! Przeciwnik wymusił ruch zagrożonym pionkiem (${state.activeBrax.threatenedPieceIds.join(
-            ', '
-          )}). Ten pionek nie może się ruszyć.`
-        );
-        return;
-      }
-    }
-
-    setStatusMessage(null);
-    setSelectedPieceId(pieceId);
+    void selectPiece(pieceId);
   };
 
   const executeMove = (move: MoveAction) => {
-    try {
-      // Determine if Brax can be called with this move
-      let moveActionToApply: MoveAction = move;
-      if (callBraxNextMove) {
-        const candidateWithBrax: MoveAction = { ...move, callBrax: true };
-        const valWithBrax = defaultBraxEngine.validateMove(state, candidateWithBrax);
-        if (valWithBrax.valid) {
-          moveActionToApply = candidateWithBrax;
-        } else {
-          moveActionToApply = { ...move, callBrax: false };
-        }
-      } else {
-        moveActionToApply = { ...move, callBrax: false };
-      }
-
-      const nextState = defaultBraxEngine.applyMove(state, moveActionToApply);
-      setStateHistory((prev) => [...prev, state]);
-      setState(nextState);
-      setSelectedPieceId(null);
-
-      // Check if capture occurred and provide immediate, satisfying feedback
-      const lastEntry = nextState.history[nextState.history.length - 1];
-      if (lastEntry?.capturedPiece) {
-        const captorName = lastEntry.player === 'RED' ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
-        setStatusMessage(
-          `Zbicie wykonane! Gracz ${captorName} pomyślnie zbił wrogiego pionka ${lastEntry.capturedPiece.id}!`
-        );
-      } else {
-        setStatusMessage(null);
-      }
-    } catch (err: any) {
-      setStatusMessage(err.message || 'Niepoprawny ruch.');
-    }
-  };
-
-  const undoMove = () => {
-    if (stateHistory.length === 0) return;
-    const prev = stateHistory[stateHistory.length - 1];
-    setStateHistory((old) => old.slice(0, old.length - 1));
-    setState(prev);
-    setSelectedPieceId(null);
-    setStatusMessage(null);
+    void applyMove(move, callBraxNextMove);
   };
 
   const resetGame = (modeId: string = 'two_player') => {
-    const fresh = defaultBraxEngine.initGame(modeId);
-    setState(fresh);
-    setStateHistory([]);
-    setSelectedPieceId(null);
     setActiveScenarioId(null);
-    setStatusMessage(null);
+    void resetSession(modeId);
   };
 
   const handleLoadScenario = (scenario: GameScenario) => {
-    setState(scenario.state);
-    setStateHistory([]);
-    setSelectedPieceId(null);
     setActiveScenarioId(scenario.id);
     setActiveTab('board');
-    setStatusMessage(`Wczytano scenariusz: ${scenario.title}. ${scenario.hint}`);
+    void loadState(scenario.state).then(() => {
+      setStatusMessage(`Wczytano scenariusz: ${scenario.title}. ${scenario.hint}`);
+    });
   };
+
+  // A session is opened asynchronously on mount; nothing below can render
+  // without a position.
+  if (!state) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-3 text-slate-600">
+        <div className="w-11 h-11 rounded-2xl bg-slate-900 flex items-center justify-center text-amber-400 font-black text-xl">
+          B
+        </div>
+        <p className="text-sm font-semibold">
+          {connectionError ?? 'Łączenie z silnikiem gry...'}
+        </p>
+        {connectionError && (
+          <button
+            onClick={() => resetGame()}
+            className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition cursor-pointer"
+          >
+            Spróbuj ponownie
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const isRedTurn = state.turn === 'RED';
 
@@ -408,8 +330,8 @@ export default function App() {
               <div className="w-full max-w-[540px] mt-4 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={undoMove}
-                    disabled={stateHistory.length === 0}
+                    onClick={() => void undoMove()}
+                    disabled={!canUndo || isBusy}
                     id="btn-undo-move"
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 shadow-2xs transition cursor-pointer"
                   >

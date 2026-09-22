@@ -152,7 +152,7 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
     'Verifies L-shaped 90° path across two consecutive segments of the player’s color.'
   );
 
-  // 4. Blocked Distance 2 (no jumping over own pieces)
+  // 4. Blocked Distance 2 (nothing may be jumped over, whoever it belongs to)
   test(
     'dist2-no-jumping',
     'Jump Prohibition: Distance 2 Blocked When Intermediate Node P1 Holds a Friendly Piece',
@@ -178,7 +178,41 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
     'Verifies that a piece may never jump its own colour: P1 must be free of friendly pieces.'
   );
 
-  // 4b. Double capture across P1 and P2
+  // 4b. A lone enemy on P1 blocks the path - passing it is not a way to travel
+  test(
+    'dist2-no-hop-over-lone-enemy',
+    'Jump Prohibition: Distance 2 Blocked When a LONE Enemy Sits on P1',
+    'Movement',
+    () => {
+      const state = createEmptyTestState();
+      state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
+      state.board['1,1'] = { id: 'MID_B', color: 'BLUE', side: 'PLAIN' };
+      // (0,1) deliberately left empty: only one piece would be taken.
+
+      const hop: MoveAction = {
+        pieceId: 'R1',
+        to: { x: 0, y: 1 },
+        mid: { x: 1, y: 1 },
+      };
+
+      const res = engine.validateMove(state, hop);
+      if (res.valid) {
+        throw new Error('Hopping a lone enemy onto an empty node should be illegal');
+      }
+
+      const validMoves = engine.getValidMoves(state, 'R1');
+      if (validMoves.some((m) => m.to.x === 0 && m.to.y === 1)) {
+        throw new Error('Blocked move appeared in getValidMoves output');
+      }
+      // That enemy is still taken the ordinary way: by landing on it.
+      if (!validMoves.some((m) => m.to.x === 1 && m.to.y === 1 && !m.mid)) {
+        throw new Error('The enemy in the way should still be capturable in one step');
+      }
+    },
+    'Verifies that an occupied intermediate node may not simply be passed: taking one piece never licenses a jump.'
+  );
+
+  // 4c. Double capture across P1 and P2 - the one case that may pass an occupant
   test(
     'dist2-double-capture',
     'Double Capture: Distance 2 Move Takes Enemies on Both P1 and P2',
@@ -208,7 +242,7 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
         throw new Error(`Expected MID_B,DEST_B in RED graveyard, got "${takenIds}"`);
       }
     },
-    'Verifies that one distance 2 move along the player’s own colour displaces enemy pieces on both nodes it touches.'
+    'Verifies the exception to the jump prohibition: two enemies in a row along the player’s own colour are both taken by one distance 2 move.'
   );
 
   // 5. Brax Call Enforcement

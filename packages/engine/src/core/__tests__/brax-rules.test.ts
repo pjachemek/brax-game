@@ -150,8 +150,7 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     // Starting RED piece at (1,0)
     state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
 
-    // Place a FRIENDLY obstacle at intermediate node (1,1). Own pieces are never
-    // jumped; an enemy there would instead be captured on the way.
+    // Place a FRIENDLY obstacle at intermediate node (1,1).
     state.board['1,1'] = { id: 'BLOCKER', color: 'RED', side: 'PLAIN' };
 
     // Valid moves for R1 should NOT contain (0,1) via (1,1)
@@ -170,10 +169,12 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     expect(validation.reason).toContain('legal path');
   });
 
-  it('2b. captures two enemy pieces in one turn by sweeping the intermediate and destination nodes', () => {
+  it('2b. captures two enemy pieces in one turn when both stand on the path', () => {
     const state = createEmptyTestState();
 
-    // RED at (1,0) with enemies on both nodes of the (1,0) -> (1,1) -> (0,1) path
+    // RED at (1,0) with enemies on both nodes of the (1,0) -> (1,1) -> (0,1) path.
+    // This is the one case in which an occupied intermediate node may be passed:
+    // it is passed because it is being taken, together with the destination.
     state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
     state.board['1,1'] = { id: 'B_MID', color: 'BLUE', side: 'PLAIN' };
     state.board['0,1'] = { id: 'B_DEST', color: 'BLUE', side: 'PLAIN' };
@@ -195,31 +196,83 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
 
     const next = engine.applyMove(state, doubleCapture);
     expect(next.board['1,0']).toBeNull();
-    expect(next.board['1,1']).toBeNull(); // swept on the way through
+    expect(next.board['1,1']).toBeNull(); // taken on the way through
     expect(next.board['0,1']?.id).toBe('R1');
 
     expect(next.capturedPieces.RED.map((p) => p.id)).toEqual(['B_MID', 'B_DEST']);
     expect(next.history[0].capturedPieces?.map((p) => p.id)).toEqual(['B_MID', 'B_DEST']);
-    expect(next.history[0].algebraic).toContain('x');
+    // Both segments carry an "x" when both nodes are taken.
+    expect(next.history[0].algebraic).toBe('B1xB2xA2');
   });
 
-  it('2c. captures a single enemy standing on the intermediate node of a distance 2 move', () => {
+  it('2c. forbids passing a lone enemy onto an EMPTY destination - that is a jump, not a capture', () => {
     const state = createEmptyTestState();
 
+    // Same path as 2b, but the destination is empty, so only one piece would be
+    // taken. Passing an occupied node is allowed only as half of a double
+    // capture, so this move does not exist.
     state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
     state.board['1,1'] = { id: 'B_MID', color: 'BLUE', side: 'PLAIN' };
     state.board['8,8'] = { id: 'B_SAFE', color: 'BLUE', side: 'PLAIN' };
 
-    const sweep: MoveAction = {
+    const offered = engine.getValidMoves(state, 'R1');
+    expect(
+      offered.some((m) => m.to.x === 0 && m.to.y === 1 && m.mid?.x === 1 && m.mid?.y === 1)
+    ).toBe(false);
+
+    const hop: MoveAction = {
+      pieceId: 'R1',
+      to: { x: 0, y: 1 },
+      mid: { x: 1, y: 1 },
+    };
+    const validation = engine.validateMove(state, hop);
+    expect(validation.valid).toBe(false);
+    expect(validation.reason).toContain('legal path');
+
+    // The lone enemy is still taken the ordinary way: by landing on it.
+    expect(offered.some((m) => m.to.x === 1 && m.to.y === 1 && !m.mid)).toBe(true);
+  });
+
+  it('2d. captures only the destination when the intermediate node is empty', () => {
+    const state = createEmptyTestState();
+
+    state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
+    state.board['0,1'] = { id: 'B_DEST', color: 'BLUE', side: 'PLAIN' };
+    state.board['8,8'] = { id: 'B_SAFE', color: 'BLUE', side: 'PLAIN' };
+
+    const move: MoveAction = {
       pieceId: 'R1',
       to: { x: 0, y: 1 },
       mid: { x: 1, y: 1 },
     };
 
-    const next = engine.applyMove(state, sweep);
-    expect(next.board['1,1']).toBeNull();
+    const next = engine.applyMove(state, move);
+    expect(next.board['1,1']).toBeNull(); // travelled through, nothing left behind
     expect(next.board['0,1']?.id).toBe('R1');
-    expect(next.capturedPieces.RED.map((p) => p.id)).toEqual(['B_MID']);
+    expect(next.capturedPieces.RED.map((p) => p.id)).toEqual(['B_DEST']);
+    // Only the final segment carries an "x" when only the destination is taken.
+    expect(next.history[0].algebraic).toBe('B1-B2xA2');
+  });
+
+  it('2e. does not threaten a lone enemy on the intermediate node via a move that cannot be played', () => {
+    const state = createEmptyTestState();
+
+    // BLUE sits on RED's intermediate node with nothing behind it, so the double
+    // capture does not exist and neither does the threat it would carry.
+    state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
+    state.board['1,1'] = { id: 'B_MID', color: 'BLUE', side: 'PLAIN' };
+
+    const threats = engine.getThreats(state, 'RED');
+    const onMid = threats.filter((t) => t.threatenedPieceId === 'B_MID');
+
+    // Threatened once - by the 1-step move that lands on it, and by that alone.
+    expect(onMid.length).toBe(1);
+
+    // With a second enemy behind it, the double capture exists and threatens both.
+    state.board['0,1'] = { id: 'B_DEST', color: 'BLUE', side: 'PLAIN' };
+    const bothThreats = engine.getThreats(state, 'RED');
+    expect(bothThreats.some((t) => t.threatenedPieceId === 'B_MID')).toBe(true);
+    expect(bothThreats.some((t) => t.threatenedPieceId === 'B_DEST')).toBe(true);
   });
 
   it('3. forces movement of threatened piece following callBrax', () => {

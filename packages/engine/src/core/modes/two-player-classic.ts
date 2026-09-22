@@ -169,9 +169,9 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     const fromKey = coordToKey(path.p0);
     const toKey = coordToKey(path.p2);
 
-    // A distance 2 move takes everything it travels over as well as what it
-    // lands on, so captures are resolved from the path, not from the
-    // destination node alone.
+    // A move takes what it lands on, and on the one path that is allowed to pass
+    // an occupied node - two enemies in a row along your own colour - what it
+    // passes as well. Captures are resolved from the path, not the destination.
     const captures = getCapturesAlongPath(state, path, movingPlayer);
 
     newBoard[fromKey] = null;

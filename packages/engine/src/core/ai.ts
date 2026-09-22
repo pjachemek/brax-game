@@ -33,8 +33,8 @@ export function chooseBestMove(
   for (const move of allLegalMoves) {
     let score = 0;
 
-    // Check captures: both the node landed on and, for a distance 2 move, the
-    // node passed over, so a double capture outweighs a single one.
+    // Check captures: the node landed on, plus the intermediate node of a double
+    // capture, so taking two outweighs taking one.
     const destPiece = getPieceAt(state, move.to);
     if (destPiece && destPiece.color !== botColor) {
       score += 100;

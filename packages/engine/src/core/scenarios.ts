@@ -53,10 +53,10 @@ export function getPresetScenarios(): GameScenario[] {
     },
     {
       id: 'scenario_blocked_jump',
-      title: '2. Zakaz przeskakiwania własnego pionka (P1 zajęte)',
+      title: '2. Zakaz przeskakiwania pionka (P1 zajęte)',
       badge: 'Zasada 2',
       description:
-        'Węzeł pośredni B2 (1,1) jest zajęty przez WŁASNY pionek OBSTACLE. Ruch o 2 do C2 jest zablokowany – własnych pionków nie wolno przeskakiwać (wrogi pionek na B2 zostałby zbity po drodze).',
+        'Węzeł pośredni B2 (1,1) jest zajęty przez WŁASNY pionek OBSTACLE. Ruch o 2 do C2 jest zablokowany – własnego pionka nigdy nie wolno minąć. Wrogi pionek na B2 blokuje tak samo, chyba że na polu docelowym stoi drugi wrogi pionek – wtedy oba zostają zbite (scenariusz 4b).',
       hint: 'Kliknij czerwony pionek R1 na B1. Zauważ, że pole C2 NIE jest dostępne jako ruch o 2!',
       state: {
         board: {
@@ -145,10 +145,10 @@ export function getPresetScenarios(): GameScenario[] {
     },
     {
       id: 'scenario_double_capture',
-      title: '4b. Podwójne bicie jednym ruchem',
+      title: '4b. Podwójne bicie jednym ruchem (wyjątek od zakazu przeskakiwania)',
       badge: 'Zasada 4',
       description:
-        'Pionek RED na B1 (1,0) wykonuje ruch o 2 po swoich liniach przez B2 (1,1) na A2 (0,1). Na obu polach stoją pionki BLUE – oba zostają zbite w jednej turze.',
+        'Pionek RED na B1 (1,0) wykonuje ruch o 2 po swoich liniach przez B2 (1,1) na A2 (0,1). Na obu polach stoją pionki BLUE – oba zostają zbite w jednej turze. To jedyny przypadek, w którym wolno minąć zajęte pole pośrednie: mija się je, bo się je zbija. Gdyby pole A2 było puste, ruch byłby nielegalny – samo przeskoczenie jednego pionka jest zakazane.',
       hint: 'Kliknij pionek R1 na B1, a następnie pole A2. Oba niebieskie pionki znikną z planszy.',
       state: {
         board: {

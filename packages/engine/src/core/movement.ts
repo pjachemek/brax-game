@@ -51,10 +51,13 @@ export function getPieceAt(state: GameState, coord: NodeCoord): Piece | null {
 /**
  * Enemy pieces displaced by walking `path`, in travel order.
  *
- * A distance 2 move captures on both nodes it touches: the intermediate node it
- * passes over and the node it lands on. Everything that needs to know what a
- * move takes off the board - applyMove, threat calculation, the UI - asks here
- * rather than re-deriving the rule.
+ * A move captures on the node it lands on, and - on a distance 2 path whose
+ * intermediate node is also held by an enemy - on that node too. Both are read
+ * off the path here, which is safe because the legality rule above admits an
+ * occupied intermediate node *only* in the take-two case: a path that merely
+ * hops over one piece is never legal, so it never reaches this function.
+ * Everything that needs to know what a move takes off the board - applyMove,
+ * threat calculation, the UI - asks here rather than re-deriving the rule.
  */
 export function getCapturesAlongPath(
   state: GameState,
@@ -109,10 +112,12 @@ export function getRawLegalPathsForPiece(
   // Allowed ONLY when BOTH consecutive segments are of piece's OWN color.
   // Path: P0 -> P1 -> P2.
   // - P1 connected to P0 via segment of pieceColor.
-  // - P1 must be empty OR hold an ENEMY piece. An enemy standing on the
-  //   intermediate node is displaced (captured) as the piece travels over it,
-  //   which is how a single turn can capture two enemy pieces. A FRIENDLY
-  //   piece on P1 still blocks the path - own pieces are never jumped.
+  // - P1 must be empty, OR hold an enemy that is taken together with a second
+  //   enemy on P2. Nothing is ever merely jumped over: passing an occupied node
+  //   is not a way to travel, it is the shape of the double capture and nothing
+  //   else. So an enemy on P1 with an EMPTY P2 is illegal - that would be a hop
+  //   over one piece - while an enemy on P1 and an enemy on P2 takes both. A
+  //   FRIENDLY piece on P1 always blocks; own pieces are never passed at all.
   // - P2 connected to P1 via segment of pieceColor.
   // - P2 != P0 (no backtracking to starting node).
   // - P2 cannot contain a friendly piece (can be empty or enemy piece).
@@ -120,11 +125,15 @@ export function getRawLegalPathsForPiece(
   const step1Candidates = boardGraph.getNeighborsByColor(fromCoord, pieceColor);
 
   for (const p1 of step1Candidates) {
-    // Own pieces block the path; an enemy on P1 is captured en route.
+    // Own pieces block the path outright.
     const pieceAtP1 = getPieceAt(state, p1);
     if (pieceAtP1 !== null && pieceAtP1.color === pieceColor) {
       continue;
     }
+
+    // An enemy standing here is passable only as half of a double capture, so
+    // this path now owes a second enemy on the destination.
+    const owesSecondCapture = pieceAtP1 !== null;
 
     const step2Candidates = boardGraph.getNeighborsByColor(p1, pieceColor);
     for (const p2 of step2Candidates) {
@@ -135,6 +144,10 @@ export function getRawLegalPathsForPiece(
 
       // Destination cannot contain a friendly piece
       const destPiece = getPieceAt(state, p2);
+      // Passing an enemy on P1 only buys a move if a second enemy is taken here.
+      if (owesSecondCapture && destPiece === null) {
+        continue;
+      }
       if (!destPiece || destPiece.color !== pieceColor) {
         // Prevent duplicate paths to the same P2 with identical intermediate P1
         const alreadyExists = paths.some(
@@ -229,7 +242,7 @@ export function validateMoveAction(
       return {
         valid: false,
         reason:
-          'No legal path to destination. A 2-step move requires both segments to be your color, the intermediate node free of your own pieces (an enemy there is captured on the way) and the destination not your piece.',
+          'No legal path to destination. A 2-step move requires both segments to be your color and the destination not your piece. The intermediate node must be empty, or hold an enemy that is captured together with a second enemy on the destination - a lone piece is never jumped over.',
       };
     }
 

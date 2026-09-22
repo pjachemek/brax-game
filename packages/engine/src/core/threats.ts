@@ -48,9 +48,9 @@ export function calculateThreats(
     const legalPaths = getRawLegalPathsForPiece(state, attackerPiece, fromCoord, boardGraph);
 
     for (const path of legalPaths) {
-      // A move threatens every enemy piece it would displace: the one it passes
-      // over on a distance 2 path as well as the one it lands on. Both are just
-      // as captured at the end of the turn, so both are legitimate Brax targets.
+      // A move threatens every enemy piece it would displace. On a double
+      // capture that is both of them - the one passed and the one landed on are
+      // equally gone at the end of the turn, so both are legitimate Brax targets.
       const capturedByPath = getCapturesAlongPath(state, path, attackerColor);
 
       for (const { coord: targetCoord, piece: targetPiece } of capturedByPath) {

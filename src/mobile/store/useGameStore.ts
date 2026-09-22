@@ -219,10 +219,9 @@ export const useGameStore = create<GameStoreState>((set, get) => {
             return;
           }
 
-          // The piece may also be taken on the way through: a distance 2 move
-          // sweeps whatever stands on its intermediate node. Tapping that piece
-          // plays the move that takes it, so both halves of a double capture
-          // are reachable by aiming at the enemy.
+          // The piece may instead be the one taken on the way through, on a
+          // double capture. Tapping it plays the move that takes it, so both
+          // halves of the capture are reachable by aiming at either enemy.
           const sweepCandidate = validMoves.find((m) => m.mid && areCoordsEqual(m.mid, coord));
           if (sweepCandidate) {
             await get().selectDestination(sweepCandidate.to);

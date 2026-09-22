@@ -161,9 +161,11 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     return map;
   }, [validMoves, gameState?.board, gameState?.turn]);
 
-  // Enemy pieces standing on the intermediate node of a distance 2 move. They
-  // are taken as the piece travels over them, so they are just as much a target
-  // as the destination and must not look safe while the move is on offer.
+  // Enemy pieces standing on the intermediate node of a double capture. That
+  // move takes them as it passes, so they are just as much a target as the
+  // destination and must not look safe while the move is on offer. Only a path
+  // that also takes an enemy on its destination may pass an occupied node at
+  // all, so anything landing in this set really is on its way off the board.
   const sweptCaptureKeys = useMemo(() => {
     const keys = new Set<string>();
     if (!gameState) return keys;
@@ -476,6 +478,8 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
           const pt = coordToPx({ x, y });
           const isSelected = piece.id === selectedPieceId;
           const isThreatened = threatenedIds.has(piece.id);
+          // Both victims of a double capture are marked: the node landed on and
+          // the node passed over on the way to it.
           const isCaptureTarget = (destMap.get(key)?.isCapture ?? false) || sweptCaptureKeys.has(key);
 
           const isBraxRestricted =

@@ -45,6 +45,21 @@ export type { BoardNeighbor } from './core/board.ts';
 
 export { findPieceCoord, getPieceAt } from './core/movement.ts';
 
+// The bot's *vocabulary*, not the bot. A UI has to name a difficulty, label it
+// and validate one that arrives from storage; none of that needs the search,
+// the Experience Book or a single rule, so this module is imported directly
+// rather than through core/ai's barrel, which would drag all three in.
+export type { AIDifficulty, BotPlayConfig, MoveHistoryItem } from './core/ai/types.ts';
+export { AI_DIFFICULTIES, DIFFICULTY_PROFILES, isAIDifficulty } from './core/ai/types.ts';
+// Pacing is a property of the opponent, not of a platform, so both front ends
+// read the same numbers from here. It is pure timing - no rules, no search.
+export {
+  BOT_PACING_MIN_MS,
+  BOT_PACING_MAX_MS,
+  botPacingDelay,
+  withBotPacing,
+} from './core/ai/pacing.ts';
+
 // Failure handling belongs to the contract, not to the rulebook: a client needs
 // to tell "the rules refused that" from "the engine is unreachable" without
 // importing anything that can decide legality.

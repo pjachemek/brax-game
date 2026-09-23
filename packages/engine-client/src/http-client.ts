@@ -16,7 +16,9 @@
  *   POST   /v1/games/:id/moves/validate  { move }                   -> validation
  *   POST   /v1/games/:id/moves           { move, expectedRevision? } -> outcome
  *   POST   /v1/games/:id/undo                                       -> snapshot
- *   POST   /v1/games/:id/bot-move        { botColor }                -> { outcome }
+ *   POST   /v1/games/:id/bot-move        { botColor, difficulty? }  -> { outcome }
+ *   POST   /v1/experience/games          { history, winner, modeId? } -> { recorded }
+ *   DELETE /v1/experience                                            -> 204
  *
  * Failures arrive as { error: { code, message, details } } and are rethrown as
  * EngineError, so callers handle local and remote failures identically.
@@ -29,12 +31,14 @@
 // it into a client whose whole point is that the rules run somewhere else.
 import { EngineError } from '@brax/engine/view';
 import {
+  type AIDifficulty,
   type CreateGameOptions,
   type EngineErrorCode,
   type GameModeInfo,
   type GameSnapshot,
   type GameState,
   type MoveAction,
+  type MoveHistoryItem,
   type MoveOptionsResult,
   type MoveOutcome,
   type NodeCoord,
@@ -189,13 +193,33 @@ export class HttpEngineClient implements BraxEngineClient {
     return this.request<GameSnapshot>('POST', `/v1/games/${encodeURIComponent(gameId)}/undo`);
   }
 
-  public async playBotMove(gameId: string, botColor: PlayerColor): Promise<MoveOutcome | null> {
+  public async playBotMove(
+    gameId: string,
+    botColor: PlayerColor,
+    difficulty?: AIDifficulty
+  ): Promise<MoveOutcome | null> {
     const body = await this.request<{ outcome: MoveOutcome | null }>(
       'POST',
       `/v1/games/${encodeURIComponent(gameId)}/bot-move`,
-      { botColor }
+      { botColor, difficulty }
     );
     return body.outcome;
+  }
+
+  public async recordGameExperience(
+    history: MoveHistoryItem[],
+    winner: PlayerColor | 'DRAW',
+    modeId?: string
+  ): Promise<void> {
+    await this.request<{ recorded: boolean }>('POST', '/v1/experience/games', {
+      history,
+      winner,
+      modeId,
+    });
+  }
+
+  public async resetExperience(): Promise<void> {
+    await this.request<void>('DELETE', '/v1/experience');
   }
 
   public async healthCheck(): Promise<boolean> {

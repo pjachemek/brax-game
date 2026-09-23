@@ -10,7 +10,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { PanResponder, Platform, View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
-import { useGameStore } from '../store/useGameStore.ts';
+import { useGameStore, selectIsBotThinking } from '../store/useGameStore.ts';
 import { BOARD_SURFACE, PLAYER_PALETTE, SIGNAL } from '../theme.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
 import { useFlash, usePulse } from '../hooks/animations.ts';
@@ -113,6 +113,12 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     selectPiece,
     selectDestination,
   } = useGameStore();
+
+  // The bot owns the board while it is thinking. Taps are refused by the store
+  // anyway, but a *drag* has to be stopped here: the responder would otherwise
+  // lift a piece, follow the finger and then silently drop it back, which reads
+  // as the board having broken rather than as its being someone else's turn.
+  const isBotThinking = useGameStore(selectIsBotThinking);
 
   // Responsive board geometry layout.
   //
@@ -233,6 +239,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
   const liveRef = useRef<{
     gameState: typeof gameState;
     selectedPieceId: string | null;
+    isBotThinking: boolean;
     coordToPx: typeof coordToPx;
     pxToCoord: typeof pxToCoord;
     selectPiece: typeof selectPiece;
@@ -242,6 +249,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
   liveRef.current = {
     gameState,
     selectedPieceId,
+    isBotThinking,
     coordToPx,
     pxToCoord,
     selectPiece,
@@ -264,6 +272,8 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
         onMoveShouldSetPanResponder: (_evt, gesture) => {
           const pressed = pressedPieceRef.current;
           if (!pressed) return false;
+          // Refused before the gesture is ever claimed, so nothing is lifted.
+          if (liveRef.current.isBotThinking) return false;
           if (Math.abs(gesture.dx) + Math.abs(gesture.dy) < DRAG_THRESHOLD) return false;
 
           const live = liveRef.current.gameState;
@@ -348,8 +358,11 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     [endDrag]
   );
 
-  /** True while a press should be ignored because it is a drop's aftermath. */
-  const pressSuppressed = () => Date.now() < suppressPressUntilRef.current;
+  /**
+   * True while a press should be ignored: either it is a drop's aftermath, or
+   * the bot is on the clock and the board is not the player's to touch.
+   */
+  const pressSuppressed = () => isBotThinking || Date.now() < suppressPressUntilRef.current;
 
   // The destination the dragged piece is currently over, if it is a legal one.
   const hoverKey = useMemo(() => {
@@ -506,6 +519,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
                 void selectPiece(piece.id);
               }}
               onPressIn={() => {
+                if (isBotThinking) return;
                 pressedPieceRef.current = { id: piece.id, coord: { x, y } };
               }}
             />

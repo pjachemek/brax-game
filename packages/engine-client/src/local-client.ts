@@ -8,11 +8,13 @@
 
 import {
   GameSessionManager,
+  type AIDifficulty,
   type CreateGameOptions,
   type GameModeInfo,
   type GameSnapshot,
   type GameState,
   type MoveAction,
+  type MoveHistoryItem,
   type MoveOptionsResult,
   type MoveOutcome,
   type NodeCoord,
@@ -101,8 +103,24 @@ export class LocalEngineClient implements BraxEngineClient {
     return this.manager.undo(gameId);
   }
 
-  public playBotMove(gameId: string, botColor: PlayerColor): Promise<MoveOutcome | null> {
-    return this.manager.playBotMove(gameId, botColor);
+  public playBotMove(
+    gameId: string,
+    botColor: PlayerColor,
+    difficulty?: AIDifficulty
+  ): Promise<MoveOutcome | null> {
+    return this.manager.playBotMove(gameId, botColor, difficulty);
+  }
+
+  public recordGameExperience(
+    history: MoveHistoryItem[],
+    winner: PlayerColor | 'DRAW',
+    modeId?: string
+  ): Promise<void> {
+    return this.manager.recordGameExperience(history, winner, modeId);
+  }
+
+  public resetExperience(): Promise<void> {
+    return this.manager.resetExperience();
   }
 
   public async healthCheck(): Promise<boolean> {

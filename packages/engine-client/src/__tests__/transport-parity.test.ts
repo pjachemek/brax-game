@@ -149,6 +149,53 @@ describe.each(transports)('BraxEngineClient over %s transport', (_name, makeClie
     expect(outcome!.snapshot.state.turn).toBe('BLUE');
   });
 
+  it('plays a bot move at each difficulty, over either transport', async () => {
+    for (const difficulty of ['novice', 'intermediate', 'master'] as const) {
+      const client = makeClient();
+      const { gameId } = await client.createGame({ modeId: 'two_player' });
+
+      const outcome = await client.playBotMove(gameId, 'RED', difficulty);
+      expect(outcome, difficulty).not.toBeNull();
+      // Whatever the search decided, the canonical state accepted it.
+      expect(outcome!.snapshot.state.turn).toBe('BLUE');
+      expect(outcome!.snapshot.revision).toBe(1);
+    }
+  }, 30_000);
+
+  it('rejects a difficulty the engine does not offer', async () => {
+    const client = makeClient();
+    const { gameId } = await client.createGame({ modeId: 'two_player' });
+
+    await expect(
+      // Deliberately outside the union: a stale client or a hand-rolled request
+      // must be refused rather than silently downgraded to some default.
+      client.playBotMove(gameId, 'RED', 'grandmaster' as never)
+    ).rejects.toThrow();
+  });
+
+  it('accepts a finished game into the Experience Book and can wipe it again', async () => {
+    const client = makeClient();
+    const { gameId } = await client.createGame({ modeId: 'two_player' });
+
+    // A short real line, so the history the book replays is a legal one.
+    for (let ply = 0; ply < 4; ply++) {
+      const outcome = await client.playBotMove(gameId, ply % 2 === 0 ? 'RED' : 'BLUE', 'novice');
+      expect(outcome).not.toBeNull();
+    }
+
+    const { state } = await client.getGame(gameId);
+    await expect(
+      client.recordGameExperience(state.history, 'RED', state.gameModeId)
+    ).resolves.toBeUndefined();
+
+    await expect(client.resetExperience()).resolves.toBeUndefined();
+  }, 30_000);
+
+  it('refuses a game record with no winner the rules recognise', async () => {
+    const client = makeClient();
+    await expect(client.recordGameExperience([], 'NOBODY' as never)).rejects.toThrow();
+  });
+
   it('loads a custom position and clears the undo history with it', async () => {
     const client = makeClient();
     const { gameId } = await client.createGame({ modeId: 'two_player' });

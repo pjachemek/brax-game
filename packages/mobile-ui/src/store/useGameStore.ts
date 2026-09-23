@@ -16,8 +16,9 @@
 
 import { create } from 'zustand';
 import type { MoveOptionsResult } from '@brax/engine';
-import { areCoordsEqual, findPieceCoord, isEngineError } from '@brax/engine/view';
+import { areCoordsEqual, findPieceCoord, isEngineError, withBotPacing } from '@brax/engine/view';
 import type {
+  BotPlayConfig,
   GameSnapshot,
   GameState,
   MoveAction,
@@ -27,6 +28,31 @@ import type {
 
 import { GameStoreState, TurnPhase } from '../types.ts';
 import { getEngineClient } from '../engine.ts';
+
+const DEFAULT_BOT_CONFIG: BotPlayConfig = {
+  enabled: false,
+  botColor: 'BLUE',
+  difficulty: 'intermediate',
+};
+
+/**
+ * "The bot owes a move here."
+ *
+ * Derived from the position rather than stored alongside it, so undo, reset and
+ * a mid-game colour switch cannot leave a stale lock behind. The in-flight flag
+ * is folded in as well, so the board stays locked for the whole turnaround even
+ * in the instant after the bot's move lands and before React re-renders.
+ */
+export function selectIsBotThinking(state: GameStoreState): boolean {
+  if (state.isBotTurnInFlight) return true;
+  const { botConfig, gameState } = state;
+  return Boolean(
+    botConfig.enabled &&
+      gameState &&
+      gameState.result === null &&
+      gameState.turn === botConfig.botColor
+  );
+}
 
 /** Interaction fields reset whenever the board changes underneath the player. */
 const CLEARED_SELECTION = {
@@ -41,8 +67,35 @@ export const useGameStore = create<GameStoreState>((set, get) => {
   // test may swap it, so the store must not capture one at module load.
   const client = () => getEngineClient();
 
+  /**
+   * Games already credited to the Experience Book, so a finished board that
+   * re-renders (or is re-adopted after a refresh) is not learned from twice.
+   */
+  const recordedGames = new Set<string>();
+
+  /**
+   * Teaches the bot from a game that has just finished.
+   *
+   * Every completed game is recorded, not only those the bot played: two humans
+   * passing a phone back and forth produce the best material the book can get.
+   * Failures are swallowed on purpose - a book that cannot be written costs the
+   * bot a memory, never the players their result.
+   */
+  const learnFromFinishedGame = (snapshot: GameSnapshot) => {
+    if (!snapshot.result || snapshot.state.history.length === 0) return;
+
+    const token = `${snapshot.gameId}:${snapshot.state.history.length}:${snapshot.result.winner}`;
+    if (recordedGames.has(token)) return;
+    recordedGames.add(token);
+
+    void client()
+      .recordGameExperience(snapshot.state.history, snapshot.result.winner, snapshot.modeId)
+      .catch(() => undefined);
+  };
+
   /** Folds a snapshot into the store and derives the resting turn phase. */
   const applySnapshot = (snapshot: GameSnapshot, patch: Partial<GameStoreState> = {}) => {
+    learnFromFinishedGame(snapshot);
     set({
       gameId: snapshot.gameId,
       gameState: snapshot.state,
@@ -131,11 +184,19 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     applySnapshot(outcome.snapshot, { statusMessage: message });
   };
 
-  /** Guard for actions that need an established session. */
+  /**
+   * Guard for actions that need an established session and the player's turn.
+   *
+   * The bot check belongs here rather than in each action: while the bot is on
+   * the clock, *every* player-initiated action - selecting, dropping, answering
+   * a Brax prompt, undoing - is aimed at a position that is about to change,
+   * and there is no such action that should be allowed through.
+   */
   const requireGameId = (): string | null => {
-    const { gameId, isBusy } = get();
-    if (!gameId || isBusy) return null;
-    return gameId;
+    const state = get();
+    if (!state.gameId || state.isBusy) return null;
+    if (selectIsBotThinking(state)) return null;
+    return state.gameId;
   };
 
   const store: GameStoreState = {
@@ -149,6 +210,9 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     validMoves: [],
     turnPhase: 'CONNECTING',
     pendingMove: null,
+
+    botConfig: DEFAULT_BOT_CONFIG,
+    isBotTurnInFlight: false,
 
     isBusy: false,
     connectionError: null,
@@ -427,15 +491,92 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       });
     },
 
+    /**
+     * Undo, meaning "give me back the position I last had a decision in".
+     *
+     * Against the bot that is two half-moves. Rolling back only the bot's reply
+     * would hand the player a position they never chose from, and the auto-play
+     * effect would answer it again immediately - the board would appear to
+     * ignore the undo entirely. The second step is conditional, so undoing the
+     * bot's *opening* move (when the human is BLUE) still works.
+     */
     undoMove: async () => {
       const gameId = requireGameId();
       if (!gameId || !get().canUndo) return;
 
       set({ isBusy: true });
       try {
-        applySnapshot(await client().undo(gameId), { statusMessage: 'Cofnięto ostatni ruch.' });
+        let snapshot = await client().undo(gameId);
+
+        const { botConfig } = get();
+        if (botConfig.enabled && snapshot.state.turn === botConfig.botColor && snapshot.canUndo) {
+          snapshot = await client().undo(gameId);
+        }
+
+        applySnapshot(snapshot, { statusMessage: 'Cofnięto ruch.' });
       } catch (err) {
         await handleFailure(err, 'AWAITING_SELECTION');
+      }
+    },
+
+    setBotConfig: (patch) => {
+      set((state) => ({ botConfig: { ...state.botConfig, ...patch } }));
+    },
+
+    /**
+     * Plays the bot's turn, paced so the reply does not arrive on the same
+     * frame as the player's own move.
+     *
+     * Self-guarding on every count the caller might get wrong: not the bot's
+     * turn, game over, a request already in flight, or a turn already being
+     * played. That is what lets the screen call it from a plain effect.
+     */
+    playBotTurn: async () => {
+      const { gameId, gameState, botConfig, isBusy, isBotTurnInFlight, revision } = get();
+      if (!gameId || !gameState || isBusy || isBotTurnInFlight) return;
+      if (!botConfig.enabled || gameState.result !== null) return;
+      if (gameState.turn !== botConfig.botColor) return;
+
+      set({ isBotTurnInFlight: true });
+      try {
+        const outcome = await withBotPacing(() =>
+          client().playBotMove(gameId, botConfig.botColor, botConfig.difficulty)
+        );
+
+        // The board may have moved on while the bot was thinking - a reset, an
+        // undo, or the player switching to pass-and-play. Rendering the stale
+        // outcome would show a position nobody is in any more; *discarding* it
+        // silently is worse, because the engine has already applied the move
+        // and this client would sit on a board the server has moved past, with
+        // the bot's turn apparently skipped. So re-pull instead of guessing.
+        if (get().gameId !== gameId || get().revision !== revision) {
+          await get().refresh();
+          return;
+        }
+
+        if (outcome) {
+          applyOutcome(outcome);
+          return;
+        }
+
+        // The engine plays a legal move whenever one exists, so no outcome
+        // means the position is finished. Re-sync rather than leave the board
+        // locked waiting for a move that is never coming.
+        await get().refresh();
+      } catch (err) {
+        await handleFailure(err, 'AWAITING_SELECTION');
+      } finally {
+        set({ isBotTurnInFlight: false });
+      }
+    },
+
+    resetExperience: async () => {
+      try {
+        await client().resetExperience();
+        recordedGames.clear();
+        set({ statusMessage: 'Pamięć bota wyczyszczona.' });
+      } catch (err) {
+        await handleFailure(err, get().turnPhase);
       }
     },
 

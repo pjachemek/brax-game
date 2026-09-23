@@ -5,7 +5,8 @@ apps do not contain the rulebook; they talk to it through one interface.
 
 ```
 packages/engine/          @brax/engine         rules + session lifecycle, no IO, no UI
-  src/core/                                    the pure rulebook (modes, movement, threats, AI)
+  src/core/                                    the pure rulebook (modes, movement, threats)
+  src/core/ai/                                 MCTS bot + the persistent Experience Book
   src/session/                                 server-authoritative sessions on top of it
   src/view.ts             @brax/engine/view    board topology + read-only state lookups, for renderers
 
@@ -93,6 +94,39 @@ one suite against both — in-process, and over a real socket against the real
 Express app — and is the guard that keeps "move the engine off-device" from
 becoming a behaviour change.
 
+## The bot
+
+`packages/engine/src/core/ai/` holds a Monte Carlo Tree Search with learned
+priors (PUCT). It lives behind `GameSessionManager.playBotMove`, so every front
+end faces the same opponent and a hosted deployment can improve it without an
+app release.
+
+Three things are worth knowing about it:
+
+- **It searches on its own fast path.** The rulebook's `getValidMoves` recomputes
+  the whole threat map per candidate so it can answer "may I declare Brax here?",
+  and `applyMove` probes every piece for stalemate. Correct, and far too slow for
+  thousands of positions per move. `core/ai/simulation.ts` answers only the two
+  questions search asks, off the same primitives (`getRawLegalPathsForPiece`,
+  `getCapturesAlongPath`). The move it finally returns is handed back to the real
+  engine, which validates it again — the fast path can never widen what is legal.
+- **Rollouts are capped at 25 plies.** Brax has no move counter and no repetition
+  rule outside the 1v1 endgame, so two pieces can shuffle between the same nodes
+  forever. The cap is termination, not tuning.
+- **It remembers.** Every finished game — bot or pass-and-play — is replayed and
+  each state→action pair credited (+1 winner, −1 loser), filed under a Zobrist
+  hash from a *fixed seed* so the book means the same thing across sessions and
+  devices. Those totals return as the P(s,a) term. Novice ignores the book,
+  Intermediate blends it halfway, Master trusts it. The book persists through
+  `ExperienceStorage`: IndexedDB or `localStorage` in a browser, in-memory under
+  Node, and a database behind the service if one is wired in.
+
+Difficulty is a profile, not a knob: simulation budget, exploration constant,
+root temperature, rollout depth and policy, and the book weight all move
+together (`core/ai/types.ts`). Master is additionally bounded by a 400ms wall
+clock, which in practice is what stops it — the budget is the ceiling, the clock
+is the floor under responsiveness.
+
 ## Why the UI still imports `@brax/engine/view`
 
 Drawing a board needs coordinates, the board graph, the ability to read a piece
@@ -101,6 +135,15 @@ connection. None of that decides what is legal. Keeping it in a separate entry
 point means the gameplay path — store, hook, components — never reaches the
 package index, so a client that ships only that path leaves modes, validation,
 threat calculation and the AI behind when the transport is `http`.
+
+`view.ts` does carry two AI-adjacent things, and both are deliberate: the
+difficulty *vocabulary* (`AIDifficulty`, the profile table, `isAIDifficulty`)
+and the bot's pacing constants. A UI has to name a difficulty, label it and
+validate one that came back from storage, and "how fast does the bot feel" is a
+property of the opponent rather than of a platform. Both modules are leaves with
+no engine imports at all, so nothing follows them in — bundling `view.ts` and
+grepping for `MCTSSearch`, `ExperienceBook` and `calculateThreats` finds none of
+them.
 
 Measured caveat for *this* repo: the web workbench tabs (`TestRunnerView`,
 `ScenariosPanel`) import `@brax/engine` on purpose, so the rulebook is present in

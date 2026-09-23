@@ -7,11 +7,13 @@
  */
 
 import type {
+  AIDifficulty,
   CreateGameOptions,
   GameModeInfo,
   GameSnapshot,
   GameState,
   MoveAction,
+  MoveHistoryItem,
   MoveOptionsResult,
   MoveOutcome,
   NodeCoord,
@@ -55,8 +57,28 @@ export interface BraxEngineClient {
     options?: ApplyMoveRequestOptions
   ): Promise<MoveOutcome>;
   undo(gameId: string): Promise<GameSnapshot>;
-  /** Plays the engine's bot move for `botColor`; null when it has nothing to play. */
-  playBotMove(gameId: string, botColor: PlayerColor): Promise<MoveOutcome | null>;
+  /**
+   * Plays the engine's bot move for `botColor`; null when it has nothing to
+   * play. `difficulty` selects the MCTS profile and falls back to the engine's
+   * own default, so a caller that does not care need not choose.
+   */
+  playBotMove(
+    gameId: string,
+    botColor: PlayerColor,
+    difficulty?: AIDifficulty
+  ): Promise<MoveOutcome | null>;
+  /**
+   * Teaches the bot from a finished game, crediting both sides along the line
+   * that was played. Fire-and-forget from the UI's point of view: a book that
+   * fails to save costs the bot a memory, never the player a game.
+   */
+  recordGameExperience(
+    history: MoveHistoryItem[],
+    winner: PlayerColor | 'DRAW',
+    modeId?: string
+  ): Promise<void>;
+  /** Wipes everything the bot has learned. */
+  resetExperience(): Promise<void>;
 
   /** Liveness probe. Always true for the local transport. */
   healthCheck(): Promise<boolean>;

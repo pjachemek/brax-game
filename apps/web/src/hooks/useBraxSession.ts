@@ -9,13 +9,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  AIDifficulty,
+  BotPlayConfig,
   GameState,
   MoveAction,
   PlayerColor,
   PlayerTurnContext,
   ThreatenedPieceInfo,
 } from '@brax/engine/view';
-import { findPieceCoord, isEngineError } from '@brax/engine/view';
+import { botPacingDelay, findPieceCoord, isEngineError } from '@brax/engine/view';
 
 import { getEngineClient } from '../services/engineClient.ts';
 
@@ -34,16 +36,32 @@ export interface BraxSession {
   turnContext: PlayerTurnContext | null;
   isEndgame: boolean;
 
+  /** Who the bot is, if anyone. Owned here so the board and the toolbar agree. */
+  botConfig: BotPlayConfig;
+  /** True from the moment the bot's reply is scheduled until it has landed. */
+  isBotThinking: boolean;
+  /** True while the human may not touch the board: the bot is on the clock. */
+  isInputLocked: boolean;
+
   selectPiece: (pieceId: string) => Promise<void>;
   executeMove: (move: MoveAction, callBraxIfPossible: boolean) => Promise<void>;
-  playBotMove: (botColor: PlayerColor) => Promise<void>;
+  playBotMove: (botColor: PlayerColor, difficulty?: AIDifficulty) => Promise<void>;
   undoMove: () => Promise<void>;
   resetGame: (modeId?: string) => Promise<void>;
   loadState: (state: GameState) => Promise<void>;
   setStatusMessage: (message: string | null) => void;
+  setBotConfig: (patch: Partial<BotPlayConfig>) => void;
+  /** Wipes the Experience Book, so the bot plays as if it had never played. */
+  resetExperience: () => Promise<void>;
 }
 
 const EMPTY_THREATS: ThreatenedPieceInfo[] = [];
+
+const DEFAULT_BOT_CONFIG: BotPlayConfig = {
+  enabled: false,
+  botColor: 'BLUE',
+  difficulty: 'intermediate',
+};
 
 export function useBraxSession(initialModeId = 'two_player'): BraxSession {
   const client = getEngineClient();
@@ -63,9 +81,26 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
   const [turnContext, setTurnContext] = useState<PlayerTurnContext | null>(null);
   const [isEndgame, setIsEndgame] = useState(false);
 
+  const [botConfig, setBotConfigState] = useState<BotPlayConfig>(DEFAULT_BOT_CONFIG);
+
   // Guards a late response from overwriting a newer position: every fetch is
   // stamped, and only the newest one is allowed to land.
   const requestSeq = useRef(0);
+
+  /**
+   * "The bot owes a move" - derived, not stored.
+   *
+   * It is true from the instant the human's move lands until the bot's reply
+   * does, which is exactly the window the board must be untouchable for, and
+   * covering the pacing delay as well as the search. Holding it as state
+   * instead would mean keeping a second copy of a fact the position already
+   * states, and every path that changes the position (undo, reset, scenario
+   * load, a difficulty switch mid-turn) would have to remember to clear it.
+   */
+  const isBotThinking = Boolean(
+    botConfig.enabled && state && state.result === null && state.turn === botConfig.botColor
+  );
+  const isInputLocked = isBotThinking || isBusy;
 
   const reportError = useCallback((err: unknown) => {
     if (isEngineError(err) && err.code === 'TRANSPORT_ERROR') {
@@ -131,6 +166,9 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
   const selectPiece = useCallback(
     async (pieceId: string) => {
       if (!gameId || !state || state.result !== null) return;
+      // The bot is on the clock: a selection made now would be aimed at a
+      // position that is about to change under the player's hand.
+      if (isBotThinking) return;
 
       const pieceInfo = findPieceCoord(state, pieceId);
       if (!pieceInfo) return;
@@ -182,7 +220,7 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
         reportError(err);
       }
     },
-    [gameId, state, threats, client, reportError]
+    [gameId, state, threats, isBotThinking, client, reportError]
   );
 
   const applyOutcome = useCallback(
@@ -206,7 +244,7 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
 
   const executeMove = useCallback(
     async (move: MoveAction, callBraxIfPossible: boolean) => {
-      if (!gameId) return;
+      if (!gameId || isBotThinking) return;
       setIsBusy(true);
       try {
         // Whether Brax may be declared is the engine's call, not a guess here.
@@ -227,37 +265,62 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
         setIsBusy(false);
       }
     },
-    [gameId, revision, client, applyOutcome, reportError]
+    [gameId, revision, isBotThinking, client, applyOutcome, reportError]
   );
 
   const playBotMove = useCallback(
-    async (botColor: PlayerColor) => {
+    async (botColor: PlayerColor, difficulty?: AIDifficulty) => {
       if (!gameId) return;
       setIsBusy(true);
       try {
-        const outcome = await client.playBotMove(gameId, botColor);
-        if (outcome) applyOutcome(outcome);
+        const outcome = await client.playBotMove(gameId, botColor, difficulty);
+        if (outcome) {
+          applyOutcome(outcome);
+          return;
+        }
+
+        // The engine plays a legal move whenever one exists, so no outcome
+        // means this client is looking at a position the engine has moved past
+        // (or finished). Re-pulling settles it; doing nothing would leave the
+        // auto-play effect asking for the same move forever, with the board
+        // locked behind a "Bot myśli..." that never clears.
+        adopt(await client.getGame(gameId));
       } catch (err) {
         reportError(err);
       } finally {
         setIsBusy(false);
       }
     },
-    [gameId, client, applyOutcome, reportError]
+    [gameId, client, adopt, applyOutcome, reportError]
   );
 
+  /**
+   * Undo, meaning "put the board back where I last had a decision to make".
+   *
+   * Against the bot that is two half-moves, not one: undoing only the bot's
+   * reply would leave the human staring at a position they never got to play
+   * from, and the auto-play effect would immediately answer again with the same
+   * move. The second step is taken only if it is actually there, so undoing the
+   * bot's opening move as RED still works.
+   */
   const undoMove = useCallback(async () => {
     if (!gameId || !canUndo) return;
     setIsBusy(true);
     try {
-      adopt(await client.undo(gameId));
+      let snapshot = await client.undo(gameId);
+
+      if (botConfig.enabled && snapshot.state.turn === botConfig.botColor && snapshot.canUndo) {
+        snapshot = await client.undo(gameId);
+      }
+
+      adopt(snapshot);
       setStatusMessage(null);
     } catch (err) {
       reportError(err);
     } finally {
       setIsBusy(false);
     }
-  }, [gameId, canUndo, client, adopt, reportError]);
+  }, [gameId, canUndo, botConfig.enabled, botConfig.botColor, client, adopt, reportError]);
 
   const resetGame = useCallback(
     async (modeId = 'two_player') => {
@@ -273,6 +336,75 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
     },
     [gameId, client, adopt, reportError]
   );
+
+  const setBotConfig = useCallback((patch: Partial<BotPlayConfig>) => {
+    setBotConfigState((current) => ({ ...current, ...patch }));
+  }, []);
+
+  const resetExperience = useCallback(async () => {
+    try {
+      await client.resetExperience();
+      setStatusMessage('Pamięć bota została wyczyszczona. Zaczyna od zera.');
+    } catch (err) {
+      reportError(err);
+    }
+  }, [client, reportError]);
+
+  /**
+   * Plays the bot's turn whenever it is the bot's turn.
+   *
+   * Driven off the position rather than off the human's move, so there is
+   * nothing extra to do when the human takes BLUE: the bot is RED, RED is to
+   * move on a fresh board, and this effect opens the game by itself. The same
+   * property makes it self-correcting after an undo, a reset or a loaded
+   * scenario - whatever puts the bot on move gets a reply.
+   *
+   * The timer id doubles as the "already armed" flag. Without it the effect
+   * would re-arm on every unrelated re-render and stack up replies, each of
+   * them computed against the same position.
+   */
+  const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!gameId || !isBotThinking || isBusy) return;
+    if (botTimerRef.current !== null) return;
+
+    const id = setTimeout(() => {
+      botTimerRef.current = null;
+      void playBotMove(botConfig.botColor, botConfig.difficulty);
+    }, botPacingDelay());
+    botTimerRef.current = id;
+
+    return () => {
+      if (botTimerRef.current === id) {
+        clearTimeout(id);
+        botTimerRef.current = null;
+      }
+    };
+  }, [gameId, isBotThinking, isBusy, botConfig.botColor, botConfig.difficulty, playBotMove]);
+
+  /**
+   * Teaches the bot from the game that just finished.
+   *
+   * Every game is recorded, not only those against the bot: a pass-and-play
+   * game between two humans is the highest-quality material the book can get.
+   * The guard is per game *result*, so a finished board being re-rendered does
+   * not credit the same line twice.
+   */
+  const recordedResultRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state?.result || state.history.length === 0) return;
+
+    const token = `${gameId}:${state.history.length}:${state.result.winner}`;
+    if (recordedResultRef.current === token) return;
+    recordedResultRef.current = token;
+
+    void client
+      .recordGameExperience(state.history, state.result.winner, state.gameModeId)
+      .catch(() => {
+        // Learning is best-effort; a book that cannot be written costs the bot
+        // a memory, never the players their result.
+      });
+  }, [gameId, state?.result, state?.history.length, client, state]);
 
   const loadState = useCallback(
     async (nextState: GameState) => {
@@ -305,6 +437,9 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
     opponentThreats,
     turnContext,
     isEndgame,
+    botConfig,
+    isBotThinking,
+    isInputLocked,
     selectPiece,
     executeMove,
     playBotMove,
@@ -312,5 +447,7 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
     resetGame,
     loadState,
     setStatusMessage,
+    setBotConfig,
+    resetExperience,
   };
 }

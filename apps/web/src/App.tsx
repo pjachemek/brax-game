@@ -3,8 +3,9 @@
  * Integrates the pure TypeScript Brax Rules Engine with an authentic, responsive interface.
  */
 
-import React, { useState, useEffect } from 'react';
-import type { MoveAction, PlayerColor } from '@brax/engine/view';
+import React, { useState } from 'react';
+import type { AIDifficulty, MoveAction, PlayerColor } from '@brax/engine/view';
+import { AI_DIFFICULTIES, DIFFICULTY_PROFILES } from '@brax/engine/view';
 import type { GameScenario } from '@brax/engine';
 import { useBraxSession } from './hooks/useBraxSession.ts';
 import { BoardView } from './components/BoardView.tsx';
@@ -26,13 +27,12 @@ import {
   ShieldCheck,
   Flag,
   Smartphone,
+  Brain,
 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'board' | 'mobile' | 'scenarios' | 'tests' | 'architecture'>('mobile');
   const [callBraxNextMove, setCallBraxNextMove] = useState<boolean>(true);
-  const [vsBot, setVsBot] = useState<boolean>(false);
-  const [botColor] = useState<PlayerColor>('BLUE');
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
 
   // The rules live behind the engine client, so the board reads a session
@@ -40,31 +40,30 @@ export default function App() {
   const {
     state,
     canUndo,
-    isBusy,
     connectionError,
     statusMessage,
     selectedPieceId,
     currentValidMoves,
     threats,
     isEndgame,
+    botConfig,
+    isBotThinking,
+    isInputLocked,
     selectPiece,
     executeMove: applyMove,
-    playBotMove,
     undoMove,
     resetGame: resetSession,
     loadState,
     setStatusMessage,
+    setBotConfig,
+    resetExperience,
   } = useBraxSession('two_player');
 
-  // Bot automated move trigger. The move itself is chosen and played by the
-  // engine; this only decides when to ask for it.
-  useEffect(() => {
-    if (!vsBot || !state || state.turn !== botColor || state.result !== null || isBusy) return;
-    const timer = setTimeout(() => {
-      void playBotMove(botColor);
-    }, 550);
-    return () => clearTimeout(timer);
-  }, [vsBot, state?.turn, state?.result, botColor, isBusy, playBotMove, state]);
+  // The bot's timing, colour and difficulty are the session's business - it is
+  // the thing that knows whose turn it is. This screen only offers the controls.
+  const vsBot = botConfig.enabled;
+  const botColor = botConfig.botColor;
+  const humanColor: PlayerColor = botColor === 'RED' ? 'BLUE' : 'RED';
 
   const handleSelectPiece = (pieceId: string) => {
     void selectPiece(pieceId);
@@ -226,9 +225,12 @@ export default function App() {
                     </div>
                     <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
                       <span>Ruch: Gracz {isRedTurn ? 'CZERWONY (RED)' : 'NIEBIESKI (BLUE)'}</span>
-                      {vsBot && state.turn === botColor && (
-                        <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold border border-blue-200">
-                          Myśli bot...
+                      {isBotThinking && (
+                        <span
+                          id="bot-thinking-pill"
+                          className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold border border-blue-200 animate-pulse"
+                        >
+                          Bot myśli...
                         </span>
                       )}
                     </div>
@@ -317,26 +319,37 @@ export default function App() {
               )}
 
               {/* Board Canvas */}
-              <BoardView
-                state={state}
-                selectedPieceId={selectedPieceId}
-                validMoves={currentValidMoves}
-                threats={threats}
-                onSelectPiece={handleSelectPiece}
-                onExecuteMove={executeMove}
-              />
+              {/* While the bot is on the clock the board is read-only. Pointer
+                  events are dropped as well as the handlers, so a click during
+                  the pacing delay cannot land on a piece that is about to move. */}
+              <div className={isInputLocked ? 'pointer-events-none opacity-90' : undefined}>
+                <BoardView
+                  state={state}
+                  selectedPieceId={selectedPieceId}
+                  validMoves={currentValidMoves}
+                  threats={threats}
+                  onSelectPiece={handleSelectPiece}
+                  onExecuteMove={executeMove}
+                  interactive={!isInputLocked}
+                />
+              </div>
 
               {/* Bottom Quick Controls */}
               <div className="w-full max-w-[540px] mt-4 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => void undoMove()}
-                    disabled={!canUndo || isBusy}
+                    disabled={!canUndo || isInputLocked}
                     id="btn-undo-move"
+                    title={
+                      vsBot
+                        ? 'Cofa ruch bota i Twój ruch, więc znów jest Twoja kolej.'
+                        : 'Cofa ostatni ruch.'
+                    }
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 shadow-2xs transition cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Cofnij</span>
+                    <span>{vsBot ? 'Cofnij (2 półruchy)' : 'Cofnij'}</span>
                   </button>
                   <button
                     onClick={() => resetGame()}
@@ -346,21 +359,127 @@ export default function App() {
                     <span>Nowa Gra</span>
                   </button>
                 </div>
+              </div>
 
-                <div className="flex items-center gap-2">
+              {/* Opponent setup. Grouped into one panel rather than scattered
+                  through the toolbar because the three choices only make sense
+                  together: who you are playing, which colour you take, and how
+                  hard they play. */}
+              <div
+                id="bot-setup-panel"
+                className="w-full max-w-[540px] mt-4 bg-white rounded-2xl border border-slate-200 shadow-xs p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Przeciwnik
+                  </h3>
+                  {vsBot && (
+                    <span className="text-[10px] font-semibold text-slate-500">
+                      Bot gra kolorem {botColor === 'RED' ? 'CZERWONYM' : 'NIEBIESKIM'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Game mode */}
+                <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setVsBot(!vsBot)}
-                    id="btn-toggle-bot"
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                      vsBot
-                        ? 'bg-blue-50 border-blue-300 text-blue-800'
+                    id="btn-mode-pass-and-play"
+                    onClick={() => setBotConfig({ enabled: false })}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                      !vsBot
+                        ? 'bg-slate-900 border-slate-900 text-white'
                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    {vsBot ? <Bot className="w-3.5 h-3.5 text-blue-600" /> : <User className="w-3.5 h-3.5" />}
-                    <span>{vsBot ? 'Gra z Botem (Włączona)' : 'Graj z Botem'}</span>
+                    <User className="w-3.5 h-3.5" />
+                    <span>Pass &amp; Play (2 graczy)</span>
+                  </button>
+                  <button
+                    id="btn-mode-vs-bot"
+                    onClick={() => setBotConfig({ enabled: true })}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                      vsBot
+                        ? 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Bot className="w-3.5 h-3.5" />
+                    <span>Gra z Botem</span>
                   </button>
                 </div>
+
+                {vsBot && (
+                  <>
+                    {/* Colour. Changing it mid-game is allowed and simply hands
+                        the other side to the bot, which then answers if it is
+                        already on move - no reset needed. */}
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Twój kolor
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          id="btn-play-as-red"
+                          onClick={() => setBotConfig({ botColor: 'BLUE' })}
+                          className={`px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                            humanColor === 'RED'
+                              ? 'bg-red-600 border-red-600 text-white'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Gram Czerwonymi (zaczynam)
+                        </button>
+                        <button
+                          id="btn-play-as-blue"
+                          onClick={() => setBotConfig({ botColor: 'RED' })}
+                          className={`px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                            humanColor === 'BLUE'
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          Gram Niebieskimi (bot zaczyna)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Difficulty */}
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                        Poziom trudności
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {AI_DIFFICULTIES.map((level: AIDifficulty) => (
+                          <button
+                            key={level}
+                            id={`btn-difficulty-${level}`}
+                            onClick={() => setBotConfig({ difficulty: level })}
+                            title={`${DIFFICULTY_PROFILES[level].minSimulations}-${DIFFICULTY_PROFILES[level].maxSimulations} symulacji MCTS`}
+                            className={`px-2 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                              botConfig.difficulty === level
+                                ? 'bg-amber-500 border-amber-500 text-white'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {DIFFICULTY_PROFILES[level].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Learned memory. The bot keeps what it learns between
+                        games, so there has to be a way to put it back to zero. */}
+                    <button
+                      id="btn-reset-experience"
+                      onClick={() => void resetExperience()}
+                      title="Bot uczy się z zakończonych partii. To kasuje całą jego pamięć."
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <Brain className="w-3.5 h-3.5" />
+                      <span>Wyczyść pamięć bota</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

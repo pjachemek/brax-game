@@ -30,7 +30,10 @@ export {
   isEndgame1v2,
   canPlayerCallBrax,
 } from './core/threats.ts';
-export { chooseBestMove } from './core/ai.ts';
+// --- Bot / AI --------------------------------------------------------------
+// The whole of core/ai is re-exported: MCTS, the Experience Book, its storage
+// adapters and the difficulty profiles are all part of what a host wires up.
+export * from './core/ai.ts';
 export { getPresetScenarios } from './core/scenarios.ts';
 export type { GameScenario } from './core/scenarios.ts';
 export { runInBrowserTestSuite } from './core/test-runner.ts';

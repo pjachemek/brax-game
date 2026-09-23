@@ -46,7 +46,14 @@ caller handles a local and a remote failure the same way.
 | `POST`   | `/v1/games/:id/moves/validate` | Dry-run a move |
 | `POST`   | `/v1/games/:id/moves` | Apply a move |
 | `POST`   | `/v1/games/:id/undo` | Roll back one move |
-| `POST`   | `/v1/games/:id/bot-move` | Let the engine play for `{ botColor }` |
+| `POST`   | `/v1/games/:id/bot-move` | Let the engine play for `{ botColor, difficulty? }` — `novice` \| `intermediate` \| `master` |
+| `POST`   | `/v1/experience/games` | Teach the bot from a finished game: `{ history, winner, modeId? }` |
+| `DELETE` | `/v1/experience` | Wipe everything the bot has learned |
+
+The two experience routes are not scoped to a game: the Experience Book is the
+service's memory *across* games, which is the point of persisting it. One
+instance means one shared book — see the scaling note below, which applies to it
+as much as to the session repository.
 
 ### Error codes
 

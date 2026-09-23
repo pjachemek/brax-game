@@ -19,7 +19,8 @@ import {
 } from '../core/types.ts';
 import { areCoordsEqual } from '../core/geometry.ts';
 import { isEndgame1v2 } from '../core/threats.ts';
-import { chooseBestMove } from '../core/ai.ts';
+import { BraxBot, isAIDifficulty } from '../core/ai.ts';
+import type { AIDifficulty, MoveHistoryItem } from '../core/ai.ts';
 import { EngineError } from './errors.ts';
 import { InMemoryGameSessionRepository } from './memory-repository.ts';
 import {
@@ -60,6 +61,14 @@ export interface SessionManagerOptions {
   maxHistory?: number;
   /** Injectable for deterministic tests. */
   idFactory?: () => string;
+  /**
+   * The opponent every front end plays against. Supplied by the host so a
+   * deployment decides where the Experience Book is persisted; one bot is
+   * shared by every session, because a book rebuilt per game learns nothing.
+   */
+  bot?: BraxBot;
+  /** Difficulty used when a caller does not name one. */
+  defaultDifficulty?: AIDifficulty;
 }
 
 function defaultIdFactory(): string {
@@ -73,12 +82,21 @@ export class GameSessionManager {
   private readonly repository: GameSessionRepository;
   private readonly maxHistory: number;
   private readonly idFactory: () => string;
+  private readonly bot: BraxBot;
+  private readonly defaultDifficulty: AIDifficulty;
 
   constructor(options: SessionManagerOptions = {}) {
     this.engine = options.engine ?? new BraxEngine();
     this.repository = options.repository ?? new InMemoryGameSessionRepository();
     this.maxHistory = options.maxHistory ?? 100;
     this.idFactory = options.idFactory ?? defaultIdFactory;
+    this.bot = options.bot ?? new BraxBot({ engine: this.engine });
+    this.defaultDifficulty = options.defaultDifficulty ?? 'intermediate';
+  }
+
+  /** The shared opponent, so a host can inspect or reset what it has learned. */
+  public getBot(): BraxBot {
+    return this.bot;
   }
 
   public listModes(): GameModeInfo[] {
@@ -260,17 +278,93 @@ export class GameSessionManager {
   }
 
   /**
-   * Picks and plays the bot's move for `botColor`.
+   * Picks and plays the bot's move for `botColor` at the requested difficulty.
    *
    * The AI lives here rather than in a client so every front end faces the same
    * opponent, and so a hosted deployment can improve it without shipping an app
    * update. Returns null when it is not the bot's turn or it has no legal move.
+   *
+   * The search is awaited rather than run inline: it yields between batches, so
+   * an in-process client keeps repainting while the bot thinks instead of
+   * freezing the board for the length of a Master search.
+   *
+   * Passing is not a move Brax has. If the bot is on turn and anything legal
+   * exists, this plays *something* - a weak move is a move, and a turn silently
+   * handed back looks to a player exactly like the game has broken. Null is
+   * therefore reserved for the two cases where no move is the truth: it is not
+   * the bot's turn, or the bot has no legal move at all (which is a stalemate,
+   * and `checkVictory` has already ended the game).
    */
-  public async playBotMove(gameId: string, botColor: PlayerColor): Promise<MoveOutcome | null> {
+  public async playBotMove(
+    gameId: string,
+    botColor: PlayerColor,
+    difficulty: AIDifficulty = this.defaultDifficulty
+  ): Promise<MoveOutcome | null> {
+    // Validated here rather than in the HTTP route, so an in-process client and
+    // a hosted one refuse exactly the same requests. A difficulty the engine
+    // does not offer is a bug in the caller; silently substituting a default
+    // would hide it and hand the player a different opponent than they picked.
+    if (!isAIDifficulty(difficulty)) {
+      throw new EngineError(
+        'INVALID_STATE',
+        `Unknown AI difficulty "${String(difficulty)}". Expected novice, intermediate or master.`
+      );
+    }
+
     const session = await this.requireSession(gameId);
-    const move = chooseBestMove(this.engine, session.state, botColor);
+    if (session.state.result !== null || session.state.turn !== botColor) return null;
+
+    let decision: Awaited<ReturnType<BraxBot['decide']>> = null;
+    try {
+      decision = await this.bot.decide(session.state, botColor, difficulty);
+    } catch (err) {
+      // A search that blew up is a bug to fix, not a reason to strand the
+      // player on a board nobody can move on. Report it and fall through to a
+      // legal move below.
+      console.error('[brax-engine] bot search failed; falling back to a legal move', err);
+    }
+
+    // The search ran against the position as it was when it started. Re-reading
+    // the session catches a game that moved on meanwhile (a reset, an undo, a
+    // second client) and lets applyMove refuse rather than play into a board
+    // that no longer exists.
+    const current = await this.requireSession(gameId);
+    if (current.state.result !== null || current.state.turn !== botColor) return null;
+
+    const move = decision?.move ?? this.engine.getAllValidMoves(current.state)[0];
     if (!move) return null;
-    return this.applyMove(gameId, move, { expectedRevision: session.revision });
+
+    return this.applyMove(gameId, move, { expectedRevision: current.revision });
+  }
+
+  /**
+   * Teaches the bot from a finished game.
+   *
+   * Called once a result is in, by whichever front end was playing. Both sides'
+   * moves are credited: the line a human keeps winning with is precisely the
+   * one the bot most needs to recognise next time.
+   */
+  public async recordGameExperience(
+    history: MoveHistoryItem[],
+    winner: PlayerColor | 'DRAW',
+    modeId = 'two_player'
+  ): Promise<void> {
+    if (!Array.isArray(history)) {
+      throw new EngineError('INVALID_STATE', 'Game history must be an array of moves.');
+    }
+    if (winner !== 'RED' && winner !== 'BLUE' && winner !== 'DRAW') {
+      throw new EngineError(
+        'INVALID_STATE',
+        `Unknown game result "${String(winner)}". Expected RED, BLUE or DRAW.`
+      );
+    }
+
+    await this.bot.learn(history, winner, modeId);
+  }
+
+  /** Wipes everything the bot has learned. */
+  public async resetExperience(): Promise<void> {
+    await this.bot.forget();
   }
 
   public async undo(gameId: string): Promise<GameSnapshot> {

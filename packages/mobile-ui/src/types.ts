@@ -7,7 +7,7 @@
  * because the engine may be a network hop away.
  */
 
-import type { GameState, MoveAction, NodeCoord } from '@brax/engine';
+import type { BotPlayConfig, GameState, MoveAction, NodeCoord } from '@brax/engine';
 
 /**
  * High-level interactive phases for player turn flow.
@@ -34,6 +34,18 @@ export interface GameStoreState {
   validMoves: MoveAction[];
   turnPhase: TurnPhase;
   pendingMove: MoveAction | null; // Move staged pending Brax choice
+
+  // --- Opponent ---
+  /** Who the bot is, if anyone. `enabled: false` is pass-and-play. */
+  botConfig: BotPlayConfig;
+  /**
+   * A bot turn is being played right now.
+   *
+   * Set for the whole visible turnaround - the pacing pause as well as the
+   * search - because that is the window the board has to refuse gestures for.
+   * `selectIsBotThinking` is the selector components should read.
+   */
+  isBotTurnInFlight: boolean;
 
   // --- Transport state ---
   /** An engine request is in flight; the board should refuse new input. */
@@ -66,4 +78,15 @@ export interface GameStoreState {
   loadCustomState: (state: GameState) => Promise<void>;
   /** Re-pull the canonical snapshot; used after a revision conflict. */
   refresh: () => Promise<void>;
+
+  // --- Bot ---
+  setBotConfig: (patch: Partial<BotPlayConfig>) => void;
+  /**
+   * Plays the bot's turn if it is the bot's turn. Idempotent and self-guarding,
+   * so the screen can call it from an effect without tracking whether it has
+   * already fired.
+   */
+  playBotTurn: () => Promise<void>;
+  /** Wipes everything the bot has learned across games. */
+  resetExperience: () => Promise<void>;
 }

@@ -151,7 +151,34 @@ export function createApp(options: CreateAppOptions = {}): Express {
       if (botColor !== 'RED' && botColor !== 'BLUE') {
         throw new EngineError('INVALID_STATE', 'Body must supply { botColor: "RED" | "BLUE" }.');
       }
-      res.json({ outcome: await manager.playBotMove(req.params.gameId, botColor) });
+
+      // The difficulty itself is validated by the session manager, so the
+      // in-process client refuses exactly what this route refuses.
+      res.json({
+        outcome: await manager.playBotMove(req.params.gameId, botColor, req.body?.difficulty),
+      });
+    })
+  );
+
+  // --- Experience Book -----------------------------------------------------
+  // Not scoped to a game: the book is the service's memory across all of them,
+  // which is the whole point of persisting it.
+
+  app.post(
+    '/v1/experience/games',
+    handler(async (req, res) => {
+      // Shape and result are checked by the session manager, for the same
+      // reason: one rulebook, one set of refusals, whichever transport asked.
+      await manager.recordGameExperience(req.body?.history, req.body?.winner, req.body?.modeId);
+      res.json({ recorded: true });
+    })
+  );
+
+  app.delete(
+    '/v1/experience',
+    handler(async (_req, res) => {
+      await manager.resetExperience();
+      res.status(204).end();
     })
   );
 

@@ -1,0 +1,33 @@
+# Traefik is k3s's bundled ingress controller, so no ingressClassName is set
+# and the default one applies.
+#
+# TLS assumes cert-manager with a ClusterIssuer named letsencrypt-prod. Without
+# cert-manager, drop the annotation and the tls block, or supply the secret
+# yourself: kubectl -n brax create secret tls brax-engine-tls --cert=... --key=...
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: brax-engine
+  namespace: brax
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  tls:
+    - hosts:
+        - engine.brax.example
+      secretName: brax-engine-tls
+  rules:
+    - host: engine.brax.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: brax-engine
+                port:
+                  # The Service port named "http" (service.yaml: port 80), which
+                  # forwards to containerPort 4000. Traefik talks to the Service,
+                  # never to 4000 directly, so 4000 appears nowhere in this file.
+                  name: http

@@ -7,9 +7,10 @@ revision number, never a `GameState` they could rewrite.
 ## Running it
 
 ```bash
-npm run engine:dev      # watch mode, port 4000
+npm run engine:dev      # watch mode, port 4000        (from the repo root)
 npm run engine:start    # one-shot
 PORT=4123 npm run engine:start
+npm run engine:bundle   # what the image build produces: dist/server.js
 ```
 
 ## Configuration
@@ -82,15 +83,16 @@ replicas with in-memory state will not see each other's games.
 
 ## Deploying
 
-The service is plain Node with no build step, run through `tsx`:
+This service is a deployable unit of its own: a container image, run on k3s.
 
-```dockerfile
-FROM node:22-alpine
-WORKDIR /app
-COPY package*.json ./
-COPY packages/engine ./packages/engine
-COPY services/engine-api ./services/engine-api
-RUN npm ci --omit=dev
-EXPOSE 4000
-CMD ["npx", "tsx", "services/engine-api/src/server.ts"]
+```bash
+# Context is the repo root — the service imports packages/engine as a sibling.
+docker build -f services/engine-api/Dockerfile -t brax-engine:dev .
+kubectl apply -f services/engine-api/deploy/
 ```
+
+`deploy/` holds the manifests (namespace, ConfigMap, Deployment, Service,
+Traefik Ingress). The image, the allowed origins and the ingress host all need
+setting before the first apply, and the Deployment is pinned to one replica for
+the reason above. Full instructions, including CI and the registry pull secret,
+are in [DEPLOYMENT.md](../../DEPLOYMENT.md).

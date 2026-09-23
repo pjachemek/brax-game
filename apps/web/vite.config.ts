@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+// Sources live outside apps/web (packages/*), so Vite must be allowed to read
+// them and the aliases must resolve from the repo root, not this app folder.
+const repoRoot = path.resolve(__dirname, '../..');
+
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
@@ -30,20 +34,18 @@ export default defineConfig(() => {
         // The app imports the two adapters from their own subpaths rather than
         // through the package index, so a VITE_ENGINE_TRANSPORT=http build can
         // drop the unused local adapter instead of shipping both.
-        '@brax/engine-client/local': path.resolve(
-          __dirname,
-          'packages/engine-client/src/local-client.ts'
-        ),
-        '@brax/engine-client/http': path.resolve(
-          __dirname,
-          'packages/engine-client/src/http-client.ts'
-        ),
-        '@brax/engine-client': path.resolve(__dirname, 'packages/engine-client/src/index.ts'),
-        '@brax/engine/view': path.resolve(__dirname, 'packages/engine/src/view.ts'),
-        '@brax/engine': path.resolve(__dirname, 'packages/engine/src/index.ts'),
+        '@brax/engine-client/local': path.resolve(repoRoot, 'packages/engine-client/src/local-client.ts'),
+        '@brax/engine-client/http': path.resolve(repoRoot, 'packages/engine-client/src/http-client.ts'),
+        '@brax/engine-client': path.resolve(repoRoot, 'packages/engine-client/src/index.ts'),
+        '@brax/engine/view': path.resolve(repoRoot, 'packages/engine/src/view.ts'),
+        '@brax/engine': path.resolve(repoRoot, 'packages/engine/src/index.ts'),
+        '@brax/mobile-ui/engine': path.resolve(repoRoot, 'packages/mobile-ui/src/engine.ts'),
+        '@brax/mobile-ui': path.resolve(repoRoot, 'packages/mobile-ui/src/index.ts'),
         '@': path.resolve(__dirname, '.'),
         'react-native': 'react-native-web',
-        'react-native-svg': path.resolve(__dirname, 'src/mobile/shims/svg-shim.tsx'),
+        // The mobile package draws with react-native-svg; on web the shim maps
+        // those primitives onto DOM <svg>. apps/mobile uses the real package.
+        'react-native-svg': path.resolve(repoRoot, 'packages/mobile-ui/src/shims/svg-shim.tsx'),
       },
     },
     optimizeDeps: {
@@ -65,6 +67,10 @@ export default defineConfig(() => {
       },
     },
     server: {
+      fs: {
+        // packages/* are symlinked workspace sources above the app root.
+        allow: [repoRoot],
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

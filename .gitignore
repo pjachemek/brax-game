@@ -2,7 +2,13 @@ node_modules/
 build/
 dist/
 coverage/
+.expo/
 .DS_Store
 *.log
 .env*
 !.env.example
+# Native projects are generated from app.config.ts by `expo prebuild`.
+apps/mobile/ios/
+apps/mobile/android/
+# EAS submit credentials.
+apps/mobile/play-service-account.json

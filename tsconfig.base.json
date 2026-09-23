@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    // No baseUrl: since TS 4.1 `paths` resolve against the config file that
+    // declares them, which is this one, at the repo root. Every config that
+    // extends this inherits the mapping already pointing at the right place,
+    // so none of them has to restate a base directory.
+    "paths": {
+      "@brax/engine": ["./packages/engine/src/index.ts"],
+      "@brax/engine/view": ["./packages/engine/src/view.ts"],
+      "@brax/engine/*": ["./packages/engine/src/*"],
+      "@brax/engine-client": ["./packages/engine-client/src/index.ts"],
+      "@brax/engine-client/local": ["./packages/engine-client/src/local-client.ts"],
+      "@brax/engine-client/http": ["./packages/engine-client/src/http-client.ts"],
+      "@brax/engine-client/*": ["./packages/engine-client/src/*"],
+      "@brax/mobile-ui": ["./packages/mobile-ui/src/index.ts"],
+      "@brax/mobile-ui/engine": ["./packages/mobile-ui/src/engine.ts"],
+      "@brax/mobile-ui/*": ["./packages/mobile-ui/src/*"]
+    }
+  }
+}

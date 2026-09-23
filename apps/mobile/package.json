@@ -1,0 +1,36 @@
+{
+  "name": "@brax/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild --clean",
+    "doctor": "npx expo-doctor",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "build:android": "eas build --platform android --profile production",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:preview": "eas build --platform all --profile preview",
+    "submit:android": "eas submit --platform android --latest",
+    "submit:ios": "eas submit --platform ios --latest"
+  },
+  "dependencies": {
+    "@brax/engine": "*",
+    "@brax/engine-client": "*",
+    "@brax/mobile-ui": "*",
+    "expo": "~54.0.0",
+    "expo-status-bar": "~3.0.8",
+    "react": "19.1.0",
+    "react-native": "0.81.4",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-svg": "15.12.1",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@types/react": "~19.1.0",
+    "typescript": "~5.8.2"
+  }
+}

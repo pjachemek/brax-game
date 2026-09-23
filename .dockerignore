@@ -1,0 +1,8 @@
+# The build context is the repo root, because services/engine-api imports
+# packages/engine as a sibling. Nothing else is needed to build the image.
+*
+!packages/engine
+!services/engine-api
+**/node_modules
+**/dist
+**/__tests__

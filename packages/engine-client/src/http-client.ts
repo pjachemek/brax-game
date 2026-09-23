@@ -22,8 +22,13 @@
  * EngineError, so callers handle local and remote failures identically.
  */
 
+// EngineError is taken from the `view` entry point rather than the package
+// index on purpose. It is the only *value* this adapter needs from the engine,
+// and the index re-exports the rulebook — modes, threats, the AI. A bundler
+// that does not tree-shake (Metro, for the React Native app) would pull all of
+// it into a client whose whole point is that the rules run somewhere else.
+import { EngineError } from '@brax/engine/view';
 import {
-  EngineError,
   type CreateGameOptions,
   type EngineErrorCode,
   type GameModeInfo,

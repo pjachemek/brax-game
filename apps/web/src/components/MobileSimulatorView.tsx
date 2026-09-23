@@ -5,8 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { MobileGameScreen } from '../mobile/components/MobileGameScreen.tsx';
-import { useGameStore } from '../mobile/store/useGameStore.ts';
+import { MobileGameScreen, useGameStore } from '@brax/mobile-ui';
 import {
   Smartphone,
   Code2,
@@ -23,16 +22,16 @@ import {
 const CODE_SNIPPETS: Record<string, { title: string; filename: string; language: string; code: string; desc: string }> = {
   store: {
     title: 'Zustand Store (useGameStore.ts)',
-    filename: 'src/mobile/store/useGameStore.ts',
+    filename: 'packages/mobile-ui/src/store/useGameStore.ts',
     language: 'typescript',
     desc: 'Trzyma stan interakcji (zaznaczenie, faza tury) i projekcję sesji z silnika. Nie zawiera reguł: legalność ruchów, prawo do Brax, zbicia, wynik i cofanie przychodzą z BraxEngineClient.',
     code: `import { create } from 'zustand';
 import { isEngineError } from '@brax/engine';
 import { areCoordsEqual, findPieceCoord } from '@brax/engine/view';
-import { getEngineClient } from '../../services/engineClient.ts';
+import { getEngineClient } from '@brax/mobile-ui/engine';
 
 // Silnik może być lokalny albo hostowany — store tego nie wie.
-const client = getEngineClient();
+const client = () => getEngineClient();
 
 export const useGameStore = create<GameStoreState>((set, get) => ({
   gameId: null,          // sesja jest autorytatywna po stronie silnika
@@ -87,7 +86,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   },
   board: {
     title: 'Responsive Board (BraxBoard.tsx)',
-    filename: 'src/mobile/components/BraxBoard.tsx',
+    filename: 'packages/mobile-ui/src/components/BraxBoard.tsx',
     language: 'tsx',
     desc: 'Renderowanie siatki 9x9 w react-native-svg, krawędzi ortogonalnych (RED/BLUE), etykiet startowych 1..7 oraz 81 punktów dotykowych. Rozmiar planszy pochodzi z pomiaru kontenera (onLayout), nie z szerokości okna.',
     code: `import React, { useMemo } from 'react';
@@ -95,7 +94,7 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
 import { useGameStore } from '../store/useGameStore.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
-import { CANONICAL_BRAX_BOARD } from '../../engine/board.ts';
+import { CANONICAL_BRAX_BOARD } from '@brax/engine/view';
 
 export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
   const windowDims = useWindowDimensions();
@@ -136,12 +135,12 @@ export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
   },
   piece: {
     title: 'Piece Renderer (PieceRenderer.tsx)',
-    filename: 'src/mobile/components/PieceRenderer.tsx',
+    filename: 'packages/mobile-ui/src/components/PieceRenderer.tsx',
     language: 'tsx',
     desc: 'Renderuje pionki (okrąg RED/BLUE, wzór PLAIN vs MARKED, obwódki zaznaczenia i ostrzeżenia o zagrożeniu).',
     code: `import React from 'react';
 import { G, Circle, Text as SvgText, Polygon } from 'react-native-svg';
-import { Piece } from '../../engine/types.ts';
+import { Piece } from '@brax/engine/view';
 
 export const PieceRenderer: React.FC<PieceRendererProps> = ({
   piece, cx, cy, radius, isSelected, isThreatened, isCaptureTarget, isBraxRestricted, onPress
@@ -163,7 +162,7 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
   },
   modal: {
     title: 'Brax Choice Modal (BraxModal.tsx)',
-    filename: 'src/mobile/components/BraxModal.tsx',
+    filename: 'packages/mobile-ui/src/components/BraxModal.tsx',
     language: 'tsx',
     desc: 'Wstrzymuje zakończenie tury, gdy ruch stwarza bezpośrednie zagrożenie i umożliwia wybór: "Call Brax!" lub "Zwykły ruch".',
     code: `import React from 'react';

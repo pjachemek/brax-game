@@ -1,0 +1,9 @@
+{
+  "name": "brax-engine-runtime",
+  "private": true,
+  "type": "module",
+  "description": "Runtime manifest for the container image: the bundle's only unbundled dependency.",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

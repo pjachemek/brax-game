@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: brax-engine-config
+  namespace: brax
+data:
+  # Browser origins allowed to call the service. The native app is not a
+  # browser and is unaffected by CORS, so this only needs the web origins.
+  # Pin it before exposing the service publicly.
+  ALLOWED_ORIGINS: "https://brax.example,https://www.brax.example"
+  # Idle session lifetime (24h) and the retained-session cap. Both bound the
+  # memory of a single replica, which is the whole store — see the replica note
+  # in deployment.yaml.
+  SESSION_TTL_MS: "86400000"
+  MAX_SESSIONS: "5000"

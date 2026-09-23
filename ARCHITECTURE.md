@@ -13,13 +13,36 @@ packages/engine-client/   @brax/engine-client  the BraxEngineClient interface
   src/local-client.ts                          runs the engine in-process
   src/http-client.ts                           calls the hosted service
 
-services/engine-api/      @brax/engine-api     Express service wrapping GameSessionManager
+packages/mobile-ui/       @brax/mobile-ui      React Native view layer + Zustand store
+  src/engine.ts                                the transport seam each app fills in
+  src/store/useGameStore.ts                    mobile session
 
-src/                                           the app (web workbench + React Native mobile UI)
-  services/engineClient.ts                     the only place that picks a transport
-  hooks/useBraxSession.ts                      web board session
-  mobile/store/useGameStore.ts                 mobile session (Zustand)
+services/engine-api/      @brax/engine-api     Express service wrapping GameSessionManager
+  Dockerfile                                   -> container image
+  deploy/                                      -> k3s manifests
+
+apps/web/                 @brax/web            Vite workbench: board, scenarios, tests, simulator
+  src/services/engineClient.ts                 picks a transport from VITE_ENGINE_TRANSPORT
+
+apps/mobile/              @brax/mobile         Expo app -> iOS and Android
+  src/engine.ts                                http transport only, EXPO_PUBLIC_ENGINE_URL
 ```
+
+## Three deployable units
+
+Each of these is built, versioned and shipped on its own. Nothing but the
+workspace packages is shared, and those are consumed as source.
+
+| Unit | Built by | Ships as |
+| ---- | -------- | -------- |
+| `services/engine-api` | `docker build -f services/engine-api/Dockerfile .` | a container image, run on k3s |
+| `apps/mobile` | `eas build` | an `.ipa` / `.aab` in the App Store and Play Store |
+| `apps/web` | `vite build` | static files in `apps/web/dist` |
+
+The engine image is deliberately independent of the other two: its build
+installs esbuild and compiles `services/engine-api` plus `packages/engine` into
+one file. It never sees the Vite or Expo dependency graphs, so a change under
+`apps/**` cannot break or invalidate it. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## The rule that holds this together
 
@@ -43,13 +66,26 @@ createEngineClient({ transport: 'local' })
 createEngineClient({ transport: 'http', baseUrl: 'https://engine.example' })
 ```
 
-In the app this is environment configuration, not a code change:
+In `apps/web` this is environment configuration, not a code change:
 
 ```
 VITE_ENGINE_TRANSPORT=local              # bundled engine, offline play (default)
 VITE_ENGINE_TRANSPORT=http
 VITE_ENGINE_URL=https://engine.example   # hosted engine
 ```
+
+`apps/mobile` does not have the choice: it constructs an `HttpEngineClient` and
+nothing else. The rulebook is never bundled into the device binary, so a
+tampered or out-of-date install cannot play a different game than the service
+allows, and a rules fix ships by redeploying the engine rather than by waiting
+on an App Store review. The cost is that the app needs a reachable engine to
+open a game.
+
+`@brax/mobile-ui` itself picks no transport. It exposes `configureEngineClient`,
+and each host installs one at startup — the Expo app an HTTP client, the web
+workbench whatever `VITE_ENGINE_TRANSPORT` selected, the store tests a local
+one. That is also what lets the same components run under Metro, which has no
+`import.meta.env` to branch on.
 
 Both adapters drive the same `GameSessionManager`, so they cannot drift in
 behaviour. `packages/engine-client/src/__tests__/transport-parity.test.ts` runs
@@ -68,14 +104,24 @@ threat calculation and the AI behind when the transport is `http`.
 
 Measured caveat for *this* repo: the web workbench tabs (`TestRunnerView`,
 `ScenariosPanel`) import `@brax/engine` on purpose, so the rulebook is present in
-the web bundle whichever transport is configured. The saving is real for a build
-that excludes those dev tools, such as the React Native app.
+the web bundle whichever transport is configured. The saving is real for the
+React Native app, which excludes those dev tools — and it is checked: bundling
+`apps/mobile` and grepping the output for `calculateThreats` and `fox_and_geese`
+finds neither. Only `packages/engine/src/core/{geometry,board,movement}.ts`
+reach the device, which is the topology a renderer needs.
+
+This is easy to lose by accident. `http-client.ts` imported `EngineError` from
+the package index rather than from `@brax/engine/view`, and because Metro does
+not tree-shake, that one value import dragged the modes, the threat calculation
+and the AI into the app. Value imports from `@brax/engine` do not belong on any
+path the mobile app can reach.
 
 ## What is still coupled, deliberately
 
 - `ScenariosPanel` and `TestRunnerView` import `@brax/engine` directly. They are
   engine development tools — preset positions and the in-browser rules suite —
-  not gameplay, and they are meant to exercise the engine in-process.
+  not gameplay, and they are meant to exercise the engine in-process. They live
+  in `apps/web` only, which is why the mobile bundle is unaffected.
 - The in-memory session repository means one service instance. Implement
   `GameSessionRepository` against Redis or Postgres before scaling out; see
   [services/engine-api/README.md](services/engine-api/README.md).
@@ -85,8 +131,12 @@ that excludes those dev tools, such as the React Native app.
 ## Running it
 
 ```bash
-npm run dev            # app (local engine by default)
+npm run dev            # apps/web on :3000 (local engine by default)
+npm run mobile         # apps/mobile through Expo (needs an engine to talk to)
 npm run engine:dev     # engine service on :4000
 npm test               # engine rules, mobile store, transport parity
-npm run lint           # tsc --noEmit across all workspaces
+npm run lint           # tsc --noEmit across the workspace
 ```
+
+Deployment — the image, the k3s manifests and the store builds — is in
+[DEPLOYMENT.md](DEPLOYMENT.md).

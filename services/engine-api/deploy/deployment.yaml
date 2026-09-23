@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brax-engine
+  namespace: brax
+  labels:
+    app.kubernetes.io/name: brax-engine
+spec:
+  # Deliberately 1. Sessions live in the process (InMemoryGameSessionRepository),
+  # so a second replica would serve games the first one has never heard of.
+  # Implement GameSessionRepository against Redis or Postgres before raising
+  # this — see services/engine-api/README.md.
+  replicas: 1
+  strategy:
+    # Rolling past a single in-memory replica would drop live games either way;
+    # Recreate at least makes the cutover explicit instead of splitting traffic
+    # across two states.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: brax-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: brax-engine
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: engine
+          image: ghcr.io/OWNER/brax-engine:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            # The end of the chain: service.yaml's `targetPort: http` resolves
+            # to this name, so the Service's port 80 lands on 4000 here.
+            - name: http
+              containerPort: 4000
+          env:
+            # containerPort above is documentation; this is what actually makes
+            # the process listen on 4000. The two must agree.
+            - name: PORT
+              value: "4000"
+          envFrom:
+            - configMapRef:
+                name: brax-engine-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              # The bot search is the only CPU-heavy path; memory is bounded by
+              # MAX_SESSIONS above.
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

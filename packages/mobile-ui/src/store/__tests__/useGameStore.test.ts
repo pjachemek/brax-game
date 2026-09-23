@@ -7,8 +7,10 @@
  * over HTTP because both adapters drive the same GameSessionManager.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import type { GameState, Piece } from '@brax/engine/view';
+import { LocalEngineClient } from '@brax/engine-client/local';
+import { configureEngineClient } from '../../engine.ts';
 import { useGameStore } from '../useGameStore.ts';
 
 function createEmptyTestState(): GameState {
@@ -34,6 +36,12 @@ function createEmptyTestState(): GameState {
 }
 
 describe('useGameStore (React Native Mobile State)', () => {
+  // The package ships no transport of its own; the suite installs the
+  // in-process one, exactly as a host app installs its own at startup.
+  beforeAll(() => {
+    configureEngineClient(new LocalEngineClient());
+  });
+
   beforeEach(async () => {
     await useGameStore.getState().initGame('two_player');
   });

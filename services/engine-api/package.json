@@ -6,7 +6,9 @@
   "main": "./src/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "bundle": "esbuild src/server.ts --bundle --platform=node --target=node22 --format=esm --external:express --alias:@brax/engine=../../packages/engine/src/index.ts --outfile=dist/server.js",
+    "lint": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@brax/engine": "*",

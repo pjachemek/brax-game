@@ -1,0 +1,25 @@
+{
+  "name": "@brax/mobile-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./engine": "./src/engine.ts",
+    "./theme": "./src/theme.ts",
+    "./types": "./src/types.ts"
+  },
+  "dependencies": {
+    "@brax/engine": "*",
+    "@brax/engine-client": "*"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-native": "*",
+    "react-native-safe-area-context": "*",
+    "react-native-svg": "*",
+    "zustand": ">=5"
+  }
+}

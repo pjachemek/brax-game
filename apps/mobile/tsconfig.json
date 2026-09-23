@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "jsx": "react-jsx",
+    "types": ["react", "node"]
+  },
+  "include": [
+    "App.tsx",
+    "app.config.ts",
+    "src",
+    "../../packages/engine/src",
+    "../../packages/engine-client/src",
+    "../../packages/mobile-ui/src"
+  ],
+  "exclude": ["../../packages/mobile-ui/src/shims"]
+}

@@ -1,0 +1,54 @@
+# Builds the iOS and Android apps through EAS.
+#
+# Requires an EXPO_TOKEN secret (Expo account -> Access tokens). Signing
+# credentials live in EAS, not in the repo; the Apple and Play submissions are
+# configured in apps/mobile/eas.json.
+name: mobile-build
+
+on:
+  push:
+    tags: ['mobile-v*']
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        type: choice
+        options: [preview, production]
+        default: preview
+      platform:
+        description: Target platform
+        type: choice
+        options: [all, ios, android]
+        default: all
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      # The shared view layer and store are typechecked and unit-tested from the
+      # workspace root, so a broken store fails before an hour of EAS build time
+      # is spent on it.
+      - run: npm test
+      - run: npm run lint --workspace @brax/mobile
+
+      - name: EAS build
+        working-directory: apps/mobile
+        run: |
+          eas build \
+            --non-interactive \
+            --no-wait \
+            --platform "${{ inputs.platform || 'all' }}" \
+            --profile "${{ inputs.profile || 'production' }}"

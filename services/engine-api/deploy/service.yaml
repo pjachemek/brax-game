@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: brax-engine
+  namespace: brax
+  labels:
+    app.kubernetes.io/name: brax-engine
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: brax-engine
+  ports:
+    # The hop the Ingress cannot show you, spelled out:
+    #
+    #   ingress.yaml  backend.service.port.name: http
+    #     -> this port, named "http", reached on port 80
+    #        targetPort: http
+    #          -> deployment.yaml, the CONTAINER port named "http" = 4000
+    #
+    # The two "http" names are unrelated: the first is this Service port's own
+    # name, which the Ingress resolves; targetPort resolves against the port
+    # names declared on the pod. Nothing here has to change if the container
+    # moves off 4000 — only the containerPort and the PORT env var do.
+    - name: http
+      port: 80
+      targetPort: http

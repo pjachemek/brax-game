@@ -1,53 +1,8 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
-    "module": "ESNext",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "allowJs": true,
-    "jsx": "react-jsx",
-    "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@brax/engine": [
-        "./packages/engine/src/index.ts"
-      ],
-      "@brax/engine/view": [
-        "./packages/engine/src/view.ts"
-      ],
-      "@brax/engine/*": [
-        "./packages/engine/src/*"
-      ],
-      "@brax/engine-client": [
-        "./packages/engine-client/src/index.ts"
-      ],
-      "@brax/engine-client/*": [
-        "./packages/engine-client/src/*"
-      ],
-      "@brax/engine-client/local": [
-        "./packages/engine-client/src/local-client.ts"
-      ],
-      "@brax/engine-client/http": [
-        "./packages/engine-client/src/http-client.ts"
-      ]
-    },
-    "allowImportingTsExtensions": true,
-    "noEmit": true
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"]
   },
-  "include": [
-    "src",
-    "packages",
-    "services",
-    "vite.config.ts"
-  ]
+  "include": ["packages", "services", "apps/web/src", "apps/web/vite.config.ts", "vitest.config.ts"]
 }

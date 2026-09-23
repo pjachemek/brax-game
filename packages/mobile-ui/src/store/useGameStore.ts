@@ -26,7 +26,7 @@ import type {
 } from '@brax/engine/view';
 
 import { GameStoreState, TurnPhase } from '../types.ts';
-import { getEngineClient } from '../../services/engineClient.ts';
+import { getEngineClient } from '../engine.ts';
 
 /** Interaction fields reset whenever the board changes underneath the player. */
 const CLEARED_SELECTION = {
@@ -37,7 +37,9 @@ const CLEARED_SELECTION = {
 };
 
 export const useGameStore = create<GameStoreState>((set, get) => {
-  const client = getEngineClient();
+  // Resolved per call: the host app installs the transport at startup, and a
+  // test may swap it, so the store must not capture one at module load.
+  const client = () => getEngineClient();
 
   /** Folds a snapshot into the store and derives the resting turn phase. */
   const applySnapshot = (snapshot: GameSnapshot, patch: Partial<GameStoreState> = {}) => {
@@ -160,7 +162,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     initGame: async (modeId = 'two_player') => {
       set({ isBusy: true, turnPhase: 'CONNECTING', connectionError: null, errorMessage: null });
       try {
-        applySnapshot(await client.createGame({ modeId }));
+        applySnapshot(await client().createGame({ modeId }));
       } catch (err) {
         await handleFailure(err, 'CONNECTING');
       }
@@ -169,7 +171,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
     attachGame: async (gameId: string) => {
       set({ isBusy: true, turnPhase: 'CONNECTING', connectionError: null });
       try {
-        applySnapshot(await client.getGame(gameId));
+        applySnapshot(await client().getGame(gameId));
       } catch (err) {
         await handleFailure(err, 'CONNECTING');
       }
@@ -179,7 +181,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       const { gameId } = get();
       if (!gameId) return;
       try {
-        applySnapshot(await client.getGame(gameId));
+        applySnapshot(await client().getGame(gameId));
       } catch (err) {
         if (isEngineError(err) && err.code === 'GAME_NOT_FOUND') {
           // The session is gone for good; start a fresh one rather than
@@ -233,12 +235,12 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         // Threats are a rules question, so the engine answers it.
         set({ isBusy: true });
         try {
-          const threats = await client.getThreats(gameId, gameState.turn);
+          const threats = await client().getThreats(gameId, gameState.turn);
           const attackers = threats.filter((t) => t.threatenedPieceId === pieceId);
 
           if (attackers.length > 0) {
             const autoAttackerId = attackers[0].threatenedByPieceId;
-            const attackerMoves = await client.getValidMoves(gameId, autoAttackerId);
+            const attackerMoves = await client().getValidMoves(gameId, autoAttackerId);
             set({
               selectedPieceId: autoAttackerId,
               validMoves: attackerMoves,
@@ -289,7 +291,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       set({ isBusy: true });
       let legalMoves: MoveAction[];
       try {
-        legalMoves = await client.getValidMoves(gameId, pieceId);
+        legalMoves = await client().getValidMoves(gameId, pieceId);
       } catch (err) {
         await handleFailure(err, 'AWAITING_SELECTION');
         return;
@@ -335,7 +337,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
 
       let options: MoveOptionsResult;
       try {
-        options = await client.getMoveOptions(gameId, selectedPieceId, targetCoord);
+        options = await client().getMoveOptions(gameId, selectedPieceId, targetCoord);
       } catch (err) {
         await handleFailure(err, 'PIECE_SELECTED');
         return;
@@ -367,7 +369,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       }
 
       try {
-        const outcome = await client.applyMove(
+        const outcome = await client().applyMove(
           gameId,
           { ...baseMove, callBrax: false },
           { expectedRevision: revision }
@@ -386,7 +388,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       set({ isBusy: true });
 
       try {
-        const outcome = await client.applyMove(
+        const outcome = await client().applyMove(
           gameId,
           { ...pendingMove, callBrax },
           { expectedRevision: revision }
@@ -403,7 +405,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         }
 
         try {
-          const outcome = await client.applyMove(
+          const outcome = await client().applyMove(
             gameId,
             { ...pendingMove, callBrax: false },
             { expectedRevision: get().revision }
@@ -431,7 +433,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
 
       set({ isBusy: true });
       try {
-        applySnapshot(await client.undo(gameId), { statusMessage: 'Cofnięto ostatni ruch.' });
+        applySnapshot(await client().undo(gameId), { statusMessage: 'Cofnięto ostatni ruch.' });
       } catch (err) {
         await handleFailure(err, 'AWAITING_SELECTION');
       }
@@ -448,7 +450,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
 
       set({ isBusy: true });
       try {
-        applySnapshot(await client.resetGame(gameId, nextMode));
+        applySnapshot(await client().resetGame(gameId, nextMode));
       } catch (err) {
         if (isEngineError(err) && err.code === 'GAME_NOT_FOUND') {
           await get().initGame(nextMode);
@@ -465,8 +467,8 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       try {
         // Without a session yet, the scenario seeds a brand new one.
         const snapshot = gameId
-          ? await client.loadState(gameId, customState)
-          : await client.createGame({ state: customState });
+          ? await client().loadState(gameId, customState)
+          : await client().createGame({ state: customState });
         applySnapshot(snapshot);
       } catch (err) {
         await handleFailure(err, 'AWAITING_SELECTION');

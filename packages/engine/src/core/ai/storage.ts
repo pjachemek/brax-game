@@ -1,5 +1,5 @@
 /**
- * Brax AI - Experience Book persistence adapters.
+ * ReCheckers AI - Experience Book persistence adapters.
  *
  * Three implementations of the same port, one per place the book can live:
  *
@@ -24,7 +24,7 @@
 
 import type { ExperienceSnapshot, ExperienceStorage } from './types.ts';
 
-export const EXPERIENCE_STORAGE_KEY = 'brax.ai.experience.v1';
+export const EXPERIENCE_STORAGE_KEY = 're-checkers.ai.experience.v1';
 
 /** Non-persistent book. Used by the engine service and by tests. */
 export class MemoryExperienceStorage implements ExperienceStorage {
@@ -108,7 +108,7 @@ export interface IdbFactoryLike {
   open(name: string, version?: number): IdbRequestLike<IdbDatabaseLike>;
 }
 
-const IDB_DB_NAME = 'brax-ai';
+const IDB_DB_NAME = 're-checkers-ai';
 const IDB_STORE_NAME = 'experience';
 
 export class IndexedDbExperienceStorage implements ExperienceStorage {

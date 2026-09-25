@@ -1,12 +1,12 @@
 /**
- * Brax Mobile UI - Piece Renderer Component (React Native SVG)
+ * ReCheckers Mobile UI - Piece Renderer Component (React Native SVG)
  * Renders an individual piece on the board with distinct colors, side patterns (PLAIN vs MARKED),
  * and dynamic interaction states (selected, threatened, capture target).
  */
 
 import React from 'react';
 import { G, Circle, Text as SvgText, Polygon } from 'react-native-svg';
-import type { Piece } from '@brax/engine/view';
+import type { Piece } from '@re-checkers/engine/view';
 import { PLAYER_PALETTE, SIGNAL } from '../theme.ts';
 import { useShakeOffset } from '../hooks/animations.ts';
 
@@ -18,9 +18,9 @@ export interface PieceRendererProps {
   isSelected?: boolean;
   isThreatened?: boolean;
   isCaptureTarget?: boolean;
-  isBraxRestricted?: boolean;
+  isReCheckersRestricted?: boolean;
   /**
-   * Bumped by the store whenever this piece refused an action (wrong turn, Brax
+   * Bumped by the store whenever this piece refused an action (wrong turn, ReCheckers
    * restriction, no legal moves). Every change replays the shake.
    */
   shakeNonce?: number;
@@ -40,7 +40,7 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
   isSelected = false,
   isThreatened = false,
   isCaptureTarget = false,
-  isBraxRestricted = false,
+  isReCheckersRestricted = false,
   shakeNonce = 0,
   isDragging = false,
   onPress,
@@ -61,7 +61,7 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
     <G
       x={cx + shakeOffset}
       y={cy}
-      opacity={isDragging ? 0.25 : isBraxRestricted ? 0.45 : 1}
+      opacity={isDragging ? 0.25 : isReCheckersRestricted ? 0.45 : 1}
       onPress={onPress}
       onPressIn={onPressIn}
     >

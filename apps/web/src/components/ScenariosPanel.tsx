@@ -1,10 +1,10 @@
 /**
- * Brax Rules Engine - Interactive Scenarios Panel
+ * ReCheckers Rules Engine - Interactive Scenarios Panel
  * Preset test positions demonstrating Denham rules with 1-click loading.
  */
 
 import React from 'react';
-import { getPresetScenarios, type GameScenario } from '@brax/engine';
+import { getPresetScenarios, type GameScenario } from '@re-checkers/engine';
 import { Bookmark, Sparkles, ArrowRight } from 'lucide-react';
 
 interface ScenariosPanelProps {
@@ -25,7 +25,7 @@ export const ScenariosPanel: React.FC<ScenariosPanelProps> = ({
         <h3 className="font-bold text-slate-800 text-base">Interaktywne Scenariusze Testowe</h3>
       </div>
       <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-        Wybierz zdefiniowaną sytuację na planszy, aby przetestować w praktyce kluczowe zasady Brax:
+        Wybierz zdefiniowaną sytuację na planszy, aby przetestować w praktyce kluczowe zasady ReCheckers:
       </p>
 
       <div className="space-y-2.5">

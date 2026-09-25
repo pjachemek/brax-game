@@ -1,6 +1,6 @@
 /**
- * Brax Mobile UI - Responsive 9x9 Game Board Component (React Native SVG)
- * Renders the 9x9 Brax grid, colored orthogonal edges, starting rank labels 1..7,
+ * ReCheckers Mobile UI - Responsive 9x9 Game Board Component (React Native SVG)
+ * Renders the 9x9 ReCheckers grid, colored orthogonal edges, starting rank labels 1..7,
  * 81 touch-target intersection nodes, pieces, and valid move highlights.
  *
  * A move can be made either way round: tap the piece then tap the target, or
@@ -14,10 +14,10 @@ import { useGameStore, selectIsBotThinking } from '../store/useGameStore.ts';
 import { BOARD_SURFACE, PLAYER_PALETTE, SIGNAL } from '../theme.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
 import { useFlash, usePulse } from '../hooks/animations.ts';
-import { BOARD_SIZE, CANONICAL_BRAX_BOARD, areCoordsEqual } from '@brax/engine/view';
-import type { NodeCoord, Piece } from '@brax/engine/view';
+import { BOARD_SIZE, CANONICAL_RE_CHECKERS_BOARD, areCoordsEqual } from '@re-checkers/engine/view';
+import type { NodeCoord, Piece } from '@re-checkers/engine/view';
 
-export interface BraxBoardProps {
+export interface ReCheckersBoardProps {
   size?: number;
 }
 
@@ -99,7 +99,7 @@ interface DragState {
   armed: boolean;
 }
 
-export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
+export const ReCheckersBoard: React.FC<ReCheckersBoardProps> = ({ size }) => {
   const windowDims = useWindowDimensions();
   const availableWidth = size ?? Math.min(windowDims.width - 24, 480);
 
@@ -186,15 +186,15 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
     return keys;
   }, [validMoves, gameState?.board, gameState?.turn]);
 
-  // Set of threatened piece IDs (if under Brax or threat)
+  // Set of threatened piece IDs (if under ReCheckers or threat)
   const threatenedIds = useMemo(() => {
-    if (gameState?.activeBrax && gameState.activeBrax.victimColor === gameState.turn) {
-      return new Set(gameState.activeBrax.threatenedPieceIds);
+    if (gameState?.activeReCheckers && gameState.activeReCheckers.victimColor === gameState.turn) {
+      return new Set(gameState.activeReCheckers.threatenedPieceIds);
     }
     return new Set<string>();
-  }, [gameState?.activeBrax, gameState?.turn]);
+  }, [gameState?.activeReCheckers, gameState?.turn]);
 
-  const allEdges = useMemo(() => CANONICAL_BRAX_BOARD.getAllEdges(), []);
+  const allEdges = useMemo(() => CANONICAL_RE_CHECKERS_BOARD.getAllEdges(), []);
 
   // 81 intersection grid coordinates
   const allNodes: NodeCoord[] = useMemo(() => {
@@ -346,7 +346,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
 
           void (async () => {
             await selectionRef.current;
-            // The selection can be refused — Brax enforcement, or a piece with
+            // The selection can be refused — ReCheckers enforcement, or a piece with
             // no legal moves — in which case it never became the selected piece
             // and the shake has already said why.
             if (useGameStore.getState().selectedPieceId !== dropped.pieceId) return;
@@ -495,9 +495,9 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
           // the node passed over on the way to it.
           const isCaptureTarget = (destMap.get(key)?.isCapture ?? false) || sweptCaptureKeys.has(key);
 
-          const isBraxRestricted =
-            gameState.activeBrax !== null &&
-            gameState.activeBrax.victimColor === gameState.turn &&
+          const isReCheckersRestricted =
+            gameState.activeReCheckers !== null &&
+            gameState.activeReCheckers.victimColor === gameState.turn &&
             piece.color === gameState.turn &&
             !threatenedIds.has(piece.id);
 
@@ -511,7 +511,7 @@ export const BraxBoard: React.FC<BraxBoardProps> = ({ size }) => {
               isSelected={isSelected}
               isThreatened={isThreatened}
               isCaptureTarget={isCaptureTarget}
-              isBraxRestricted={isBraxRestricted}
+              isReCheckersRestricted={isReCheckersRestricted}
               shakeNonce={piece.id === rejectedPieceId ? rejectionNonce : 0}
               isDragging={drag?.pieceId === piece.id}
               onPress={() => {

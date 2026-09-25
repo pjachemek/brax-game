@@ -42,7 +42,7 @@ jobs:
       # workspace root, so a broken store fails before an hour of EAS build time
       # is spent on it.
       - run: npm test
-      - run: npm run lint --workspace @brax/mobile
+      - run: npm run lint --workspace @re-checkers/mobile
 
       - name: EAS build
         working-directory: apps/mobile

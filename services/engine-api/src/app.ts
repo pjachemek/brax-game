@@ -1,5 +1,5 @@
 /**
- * Brax Engine Service - HTTP surface.
+ * ReCheckers Engine Service - HTTP surface.
  *
  * A thin transport shell: every rule, every state transition and all history
  * live in GameSessionManager. Deploy this independently of any client.
@@ -11,7 +11,7 @@ import {
   GameSessionManager,
   type NodeCoord,
   type PlayerColor,
-} from '@brax/engine';
+} from '@re-checkers/engine';
 
 export interface CreateAppOptions {
   manager?: GameSessionManager;
@@ -31,7 +31,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(corsMiddleware(allowedOrigins));
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'brax-engine', modes: manager.listModes().length });
+    res.json({ status: 'ok', service: 're-checkers-engine', modes: manager.listModes().length });
   });
 
   app.get('/v1/modes', (_req, res) => {
@@ -252,7 +252,7 @@ function errorMiddleware(err: unknown, _req: Request, res: Response, _next: Next
     return;
   }
 
-  console.error('[brax-engine] unhandled error', err);
+  console.error('[re-checkers-engine] unhandled error', err);
   res.status(500).json({
     error: { code: 'TRANSPORT_ERROR', message: 'Internal engine service error.' },
   });

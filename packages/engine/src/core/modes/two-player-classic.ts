@@ -1,11 +1,11 @@
 /**
- * Brax Rules Engine - TwoPlayerClassicMode
- * Official 2-player classic Brax setup with 7 pieces per side, alternating turns,
- * and standard Denham Brax rules.
+ * ReCheckers Rules Engine - TwoPlayerClassicMode
+ * Official 2-player classic ReCheckers setup with 7 pieces per side, alternating turns,
+ * and standard Denham ReCheckers rules.
  */
 
 import {
-  BraxGameMode,
+  ReCheckersGameMode,
   GameState,
   MoveAction,
   PlayerColor,
@@ -23,7 +23,7 @@ import {
   coordToKey,
   isValidCoord,
 } from '../geometry.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from '../board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from '../board.ts';
 import {
   findPieceCoord,
   getCapturesAlongPath,
@@ -33,19 +33,19 @@ import {
 } from '../movement.ts';
 import {
   calculateThreats,
-  canPlayerCallBrax,
+  canPlayerCallReCheckers,
   getThreatsCreatedByMove,
   getUniqueThreatenedPieceIds,
   isEndgame1v2,
 } from '../threats.ts';
 
-export class TwoPlayerClassicMode implements BraxGameMode {
+export class TwoPlayerClassicMode implements ReCheckersGameMode {
   public readonly id = 'two_player';
-  public readonly name = 'Classic 2-Player Brax';
+  public readonly name = 'Classic 2-Player ReCheckers';
   public readonly description =
-    'Standard Brax: 7 pieces per player, Red on B1-H1, Blue on B9-H9, alternating turns with 90° color turns and Brax calling.';
+    'Standard ReCheckers: 7 pieces per player, Red on B1-H1, Blue on B9-H9, alternating turns with 90° color turns and ReCheckers calling.';
 
-  constructor(private readonly boardGraph: BoardGraph = CANONICAL_BRAX_BOARD) {}
+  constructor(private readonly boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD) {}
 
   /**
    * Initializes the standard 9x9 board with 7 Red pieces on B1-H1 and 7 Blue pieces on B9-H9.
@@ -88,8 +88,8 @@ export class TwoPlayerClassicMode implements BraxGameMode {
         RED: [],
         BLUE: [],
       },
-      activeBrax: null,
-      lastBraxCallTurn: {
+      activeReCheckers: null,
+      lastReCheckersCallTurn: {
         RED: null,
         BLUE: null,
       },
@@ -104,21 +104,21 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     const activePlayer = state.turn;
     const currentThreats = calculateThreats(state, activePlayer, this.boardGraph);
 
-    // Brax is declared with a move, so "can I Brax this turn?" means "does the
+    // ReCheckers is declared with a move, so "can I ReCheckers this turn?" means "does the
     // active player have any legal move that creates a new threat?" - not
     // "is anything threatened right now", which would still be true for a
     // threat established on an earlier turn.
-    const canBrax = this.hasBraxableMove(state);
+    const canReCheckers = this.hasReCheckersableMove(state);
 
     const mustMovePieceIds =
-      state.activeBrax !== null && state.activeBrax.victimColor === activePlayer
-        ? state.activeBrax.threatenedPieceIds
+      state.activeReCheckers !== null && state.activeReCheckers.victimColor === activePlayer
+        ? state.activeReCheckers.threatenedPieceIds
         : undefined;
 
     return {
       activePlayer,
       turnNumber: state.turnNumber,
-      braxCallable: canBrax,
+      reCheckersCallable: canReCheckers,
       threatenedPiecesCount: currentThreats.length,
       mustMovePieceIds,
     };
@@ -130,18 +130,18 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       return baseValidation;
     }
 
-    // If caller wants to declare Brax with this move, verify that the resulting board
-    // creates at least one threat on enemy pieces and Brax is allowed
-    if (move.callBrax) {
-      const simulatedNextState = this.simulateMoveWithoutBrax(state, baseValidation.path!, move.pieceId);
+    // If caller wants to declare ReCheckers with this move, verify that the resulting board
+    // creates at least one threat on enemy pieces and ReCheckers is allowed
+    if (move.callReCheckers) {
+      const simulatedNextState = this.simulateMoveWithoutReCheckers(state, baseValidation.path!, move.pieceId);
       const threatsAfterMove = calculateThreats(simulatedNextState, state.turn, this.boardGraph);
       const newThreats = getThreatsCreatedByMove(threatsAfterMove, move.pieceId);
-      const braxCheck = canPlayerCallBrax(state, state.turn, newThreats);
+      const reCheckersCheck = canPlayerCallReCheckers(state, state.turn, newThreats);
 
-      if (!braxCheck.allowed) {
+      if (!reCheckersCheck.allowed) {
         return {
           valid: false,
-          reason: `Cannot call Brax: ${braxCheck.reason}`,
+          reason: `Cannot call ReCheckers: ${reCheckersCheck.reason}`,
         };
       }
     }
@@ -155,7 +155,7 @@ export class TwoPlayerClassicMode implements BraxGameMode {
   public applyMove(state: GameState, move: MoveAction): GameState {
     const validation = this.validateMove(state, move);
     if (!validation.valid) {
-      throw new Error(`Illegal Brax move: ${validation.reason}`);
+      throw new Error(`Illegal ReCheckers move: ${validation.reason}`);
     }
 
     const path = validation.path!;
@@ -204,21 +204,21 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     // pieces may be forced to answer the declaration.
     const newThreats = getThreatsCreatedByMove(threatsAfterMove, movingPiece.id);
 
-    // 4. Handle Brax state machine
-    let newActiveBrax = null;
-    const newLastBraxCallTurn = { ...state.lastBraxCallTurn };
+    // 4. Handle ReCheckers state machine
+    let newActiveReCheckers = null;
+    const newLastReCheckersCallTurn = { ...state.lastReCheckersCallTurn };
 
-    if (move.callBrax) {
-      const braxCheck = canPlayerCallBrax(state, movingPlayer, newThreats);
-      if (braxCheck.allowed) {
+    if (move.callReCheckers) {
+      const reCheckersCheck = canPlayerCallReCheckers(state, movingPlayer, newThreats);
+      if (reCheckersCheck.allowed) {
         const uniqueThreatenedIds = getUniqueThreatenedPieceIds(newThreats);
-        newActiveBrax = {
+        newActiveReCheckers = {
           callerColor: movingPlayer,
           victimColor: nextPlayer,
           threatenedPieceIds: uniqueThreatenedIds,
           enforcedAtTurnNumber: state.turnNumber,
         };
-        newLastBraxCallTurn[movingPlayer] = state.turnNumber;
+        newLastReCheckersCallTurn[movingPlayer] = state.turnNumber;
       }
     }
 
@@ -258,8 +258,8 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       const midSep = capturedAt(path.p1) ? 'x' : '-';
       algebraic = `${p0Alg}${midSep}${p1Alg}${destSep}${p2Alg}`;
     }
-    if (newActiveBrax) {
-      algebraic += ' (Brax!)';
+    if (newActiveReCheckers) {
+      algebraic += ' (Re-Checkers!)';
     }
 
     // 7. Assemble history entry
@@ -273,7 +273,7 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       distance: path.distance,
       capturedPiece,
       capturedPieces,
-      calledBrax: Boolean(newActiveBrax),
+      calledReCheckers: Boolean(newActiveReCheckers),
       algebraic,
       timestamp: Date.now(),
     };
@@ -284,8 +284,8 @@ export class TwoPlayerClassicMode implements BraxGameMode {
       turn: nextPlayer,
       turnNumber: state.turnNumber + 1,
       capturedPieces: newCaptured,
-      activeBrax: newActiveBrax,
-      lastBraxCallTurn: newLastBraxCallTurn,
+      activeReCheckers: newActiveReCheckers,
+      lastReCheckersCallTurn: newLastReCheckersCallTurn,
       history: [...state.history, historyEntry],
       result: null,
       gameModeId: this.id,
@@ -361,7 +361,7 @@ export class TwoPlayerClassicMode implements BraxGameMode {
   }
 
   /**
-   * Computes all fully legal moves for a given piece, adhering to all Brax enforcement constraints.
+   * Computes all fully legal moves for a given piece, adhering to all ReCheckers enforcement constraints.
    */
   public getValidMoves(state: GameState, pieceId: string): MoveAction[] {
     if (state.result !== null) return [];
@@ -374,9 +374,9 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     // Must be this piece's turn
     if (piece.color !== state.turn) return [];
 
-    // Brax enforcement: if Brax was called against this player, MUST move one of the threatened pieces!
-    if (state.activeBrax !== null && state.activeBrax.victimColor === state.turn) {
-      if (!state.activeBrax.threatenedPieceIds.includes(piece.id)) {
+    // ReCheckers enforcement: if ReCheckers was called against this player, MUST move one of the threatened pieces!
+    if (state.activeReCheckers !== null && state.activeReCheckers.victimColor === state.turn) {
+      if (!state.activeReCheckers.threatenedPieceIds.includes(piece.id)) {
         // This piece is not threatened, so it CANNOT move!
         return [];
       }
@@ -386,27 +386,27 @@ export class TwoPlayerClassicMode implements BraxGameMode {
     const validMoves: MoveAction[] = [];
 
     for (const path of paths) {
-      // Check if player can call Brax with this move
-      const simulated = this.simulateMoveWithoutBrax(state, path, pieceId);
+      // Check if player can call ReCheckers with this move
+      const simulated = this.simulateMoveWithoutReCheckers(state, path, pieceId);
       const threatsAfter = calculateThreats(simulated, state.turn, this.boardGraph);
       const newThreats = getThreatsCreatedByMove(threatsAfter, pieceId);
-      const braxCheck = canPlayerCallBrax(state, state.turn, newThreats);
+      const reCheckersCheck = canPlayerCallReCheckers(state, state.turn, newThreats);
 
-      // Base move without Brax
+      // Base move without ReCheckers
       validMoves.push({
         pieceId,
         to: path.p2,
         mid: path.p1,
-        callBrax: false,
+        callReCheckers: false,
       });
 
-      // If Brax is callable, also offer the option with callBrax: true
-      if (braxCheck.allowed) {
+      // If ReCheckers is callable, also offer the option with callReCheckers: true
+      if (reCheckersCheck.allowed) {
         validMoves.push({
           pieceId,
           to: path.p2,
           mid: path.p1,
-          callBrax: true,
+          callReCheckers: true,
         });
       }
     }
@@ -416,21 +416,21 @@ export class TwoPlayerClassicMode implements BraxGameMode {
 
   /**
    * True when at least one legal move of the active player would create a new
-   * threat, i.e. when Brax can still be earned this turn.
+   * threat, i.e. when ReCheckers can still be earned this turn.
    */
-  private hasBraxableMove(state: GameState): boolean {
+  private hasReCheckersableMove(state: GameState): boolean {
     if (state.result !== null) return false;
 
     for (const piece of Object.values(state.board)) {
       if (!piece || piece.color !== state.turn) continue;
       const moves = this.getValidMoves(state, piece.id);
-      if (moves.some((m) => m.callBrax === true)) return true;
+      if (moves.some((m) => m.callReCheckers === true)) return true;
     }
 
     return false;
   }
 
-  private simulateMoveWithoutBrax(
+  private simulateMoveWithoutReCheckers(
     state: GameState,
     path: MovePath,
     pieceId: string

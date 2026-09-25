@@ -1,5 +1,5 @@
 /**
- * Brax Mobile UI - Engine client seam.
+ * ReCheckers Mobile UI - Engine client seam.
  *
  * This package renders a board and holds interaction state; it never decides
  * where the rules run. Each host app configures a transport once at startup:
@@ -13,12 +13,12 @@
  * branch, and it is the seam tests use to inject a local client.
  */
 
-import type { BraxEngineClient } from '@brax/engine-client';
+import type { ReCheckersEngineClient } from '@re-checkers/engine-client';
 
-let client: BraxEngineClient | null = null;
+let client: ReCheckersEngineClient | null = null;
 
 /** Install the transport. Call once, before the first store action runs. */
-export function configureEngineClient(next: BraxEngineClient | null): void {
+export function configureEngineClient(next: ReCheckersEngineClient | null): void {
   client = next;
 }
 
@@ -26,10 +26,10 @@ export function configureEngineClient(next: BraxEngineClient | null): void {
  * The configured transport. Resolved per call rather than at module load, so
  * importing the store does not pin a client and a host can swap one in later.
  */
-export function getEngineClient(): BraxEngineClient {
+export function getEngineClient(): ReCheckersEngineClient {
   if (!client) {
     throw new Error(
-      '@brax/mobile-ui: no engine client configured. Call configureEngineClient() during app startup.'
+      '@re-checkers/mobile-ui: no engine client configured. Call configureEngineClient() during app startup.'
     );
   }
   return client;

@@ -1,5 +1,5 @@
 /**
- * Brax Engine - In-memory session repository.
+ * ReCheckers Engine - In-memory session repository.
  *
  * Default for local play and for a single-instance service. Sessions expire so
  * a long-running server does not accumulate abandoned games.

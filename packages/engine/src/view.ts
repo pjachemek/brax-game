@@ -1,16 +1,16 @@
 /**
- * @brax/engine/view - The part of the engine a renderer is allowed to know.
+ * @re-checkers/engine/view - The part of the engine a renderer is allowed to know.
  *
  * Board topology, coordinate maths and read-only state lookups: everything a UI
  * needs to draw a position and interpret a tap, and nothing that decides what is
  * legal. Importing from here keeps the rulebook (modes, validation, victory,
  * threats, AI) out of the client bundle when the engine is hosted remotely.
  *
- * Move legality, Brax eligibility and game results come from BraxEngineClient.
+ * Move legality, ReCheckers eligibility and game results come from ReCheckersEngineClient.
  */
 
 export type {
-  BraxEnforcement,
+  ReCheckersEnforcement,
   Edge,
   GameEndReason,
   GameResult,
@@ -40,7 +40,7 @@ export {
   keyToCoord,
 } from './core/geometry.ts';
 
-export { BoardGraph, CANONICAL_BRAX_BOARD } from './core/board.ts';
+export { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from './core/board.ts';
 export type { BoardNeighbor } from './core/board.ts';
 
 export { findPieceCoord, getPieceAt } from './core/movement.ts';

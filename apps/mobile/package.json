@@ -1,5 +1,5 @@
 {
-  "name": "@brax/mobile",
+  "name": "@re-checkers/mobile",
   "version": "1.0.0",
   "private": true,
   "main": "index.js",
@@ -17,20 +17,20 @@
     "submit:ios": "eas submit --platform ios --latest"
   },
   "dependencies": {
-    "@brax/engine": "*",
-    "@brax/engine-client": "*",
-    "@brax/mobile-ui": "*",
-    "expo": "~54.0.0",
-    "expo-status-bar": "~3.0.8",
-    "react": "19.1.0",
-    "react-native": "0.81.4",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-svg": "15.12.1",
+    "@re-checkers/engine": "*",
+    "@re-checkers/engine-client": "*",
+    "@re-checkers/mobile-ui": "*",
+    "expo": "~57.0.24",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@types/react": "~19.1.0",
-    "typescript": "~5.8.2"
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
   }
 }

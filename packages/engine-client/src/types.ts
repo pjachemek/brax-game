@@ -1,5 +1,5 @@
 /**
- * @brax/engine-client - The contract the app programs against.
+ * @re-checkers/engine-client - The contract the app programs against.
  *
  * Every method is async and identified by `gameId`, never by a client-held
  * GameState. That is what makes the transport swappable: the UI cannot tell
@@ -21,7 +21,7 @@ import type {
   ThreatenedPieceInfo,
   TurnContextResult,
   ValidationResult,
-} from '@brax/engine';
+} from '@re-checkers/engine';
 
 export interface ApplyMoveRequestOptions {
   /**
@@ -31,7 +31,7 @@ export interface ApplyMoveRequestOptions {
   expectedRevision?: number;
 }
 
-export interface BraxEngineClient {
+export interface ReCheckersEngineClient {
   /** Human-readable identifier for diagnostics and the debug UI. */
   readonly transport: 'local' | 'http';
 
@@ -47,7 +47,7 @@ export interface BraxEngineClient {
   getAllValidMoves(gameId: string): Promise<MoveAction[]>;
   getMoveOptions(gameId: string, pieceId: string, to: NodeCoord): Promise<MoveOptionsResult>;
   getThreats(gameId: string, attackerColor?: PlayerColor): Promise<ThreatenedPieceInfo[]>;
-  /** Turn order, Brax rights, endgame status and both sides' threats in one call. */
+  /** Turn order, ReCheckers rights, endgame status and both sides' threats in one call. */
   getTurnContext(gameId: string): Promise<TurnContextResult>;
 
   validateMove(gameId: string, move: MoveAction): Promise<ValidationResult>;

@@ -1,12 +1,12 @@
 /**
- * Brax Rules Engine - Unit Test Suite (Vitest / Jest compatible)
- * Tests core movement, jump prohibition, Brax forcing, captures, and endgame mechanics.
+ * ReCheckers Rules Engine - Unit Test Suite (Vitest / Jest compatible)
+ * Tests core movement, jump prohibition, ReCheckers forcing, captures, and endgame mechanics.
  */
 
 import { describe, it, expect } from 'vitest';
-import { BraxEngine, getValidMoves, applyMove, validateMove } from '../engine.ts';
+import { ReCheckersEngine, getValidMoves, applyMove, validateMove } from '../engine.ts';
 import { GameState, MoveAction, Piece } from '../types.ts';
-import { CANONICAL_BRAX_BOARD } from '../board.ts';
+import { CANONICAL_RE_CHECKERS_BOARD } from '../board.ts';
 import { coordToKey } from '../geometry.ts';
 
 function createEmptyTestState(): GameState {
@@ -22,8 +22,8 @@ function createEmptyTestState(): GameState {
     turn: 'RED',
     turnNumber: 1,
     capturedPieces: { RED: [], BLUE: [] },
-    activeBrax: null,
-    lastBraxCallTurn: { RED: null, BLUE: null },
+    activeReCheckers: null,
+    lastReCheckersCallTurn: { RED: null, BLUE: null },
     history: [],
     result: null,
     gameModeId: 'two_player',
@@ -31,8 +31,8 @@ function createEmptyTestState(): GameState {
   };
 }
 
-describe('Brax Rules Engine - Geometry & Movement', () => {
-  const engine = new BraxEngine(CANONICAL_BRAX_BOARD);
+describe('ReCheckers Rules Engine - Geometry & Movement', () => {
+  const engine = new ReCheckersEngine(CANONICAL_RE_CHECKERS_BOARD);
 
   it('initializes standard two-player classic board correctly', () => {
     const state = engine.initGame('two_player');
@@ -63,7 +63,7 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
   });
 
   it('colors every segment exactly as the official board artwork does', () => {
-    // Transcribed from "Brax board -vI.svg". Rows run bottom-up in engine
+    // Transcribed from "ReCheckers board -vI.svg". Rows run bottom-up in engine
     // coordinates (y = 0 is algebraic row 1, RED's home rank), so this table is the
     // artwork read from its bottom edge upwards.
     const HORIZONTAL = [
@@ -91,7 +91,7 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     for (let y = 0; y < 9; y++) {
       for (let x = 0; x < 8; x++) {
         const expected = HORIZONTAL[y][x] === 'R' ? 'RED' : 'BLUE';
-        const actual = CANONICAL_BRAX_BOARD.getEdgeColor({ x, y }, { x: x + 1, y });
+        const actual = CANONICAL_RE_CHECKERS_BOARD.getEdgeColor({ x, y }, { x: x + 1, y });
         expect(`h ${x},${y} = ${actual}`).toBe(`h ${x},${y} = ${expected}`);
       }
     }
@@ -99,13 +99,13 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 9; x++) {
         const expected = VERTICAL[y][x] === 'R' ? 'RED' : 'BLUE';
-        const actual = CANONICAL_BRAX_BOARD.getEdgeColor({ x, y }, { x, y: y + 1 });
+        const actual = CANONICAL_RE_CHECKERS_BOARD.getEdgeColor({ x, y }, { x, y: y + 1 });
         expect(`v ${x},${y} = ${actual}`).toBe(`v ${x},${y} = ${expected}`);
       }
     }
 
     // The artwork splits the 144 segments evenly between the two players.
-    const edges = CANONICAL_BRAX_BOARD.getAllEdges();
+    const edges = CANONICAL_RE_CHECKERS_BOARD.getAllEdges();
     expect(edges.length).toBe(144);
     expect(edges.filter((e) => e.color === 'RED').length).toBe(72);
   });
@@ -275,7 +275,7 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     expect(bothThreats.some((t) => t.threatenedPieceId === 'B_DEST')).toBe(true);
   });
 
-  it('3. forces movement of threatened piece following callBrax', () => {
+  it('3. forces movement of threatened piece following callReCheckers', () => {
     const state = createEmptyTestState();
 
     // Setup RED piece at (1,0) and two BLUE pieces:
@@ -293,30 +293,30 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     const moveR2: MoveAction = {
       pieceId: 'R2',
       to: { x: 3, y: 0 },
-      callBrax: true,
+      callReCheckers: true,
     };
 
     const validation = engine.validateMove(state, moveR2);
     expect(validation.valid).toBe(true);
 
-    const stateAfterBrax = engine.applyMove(state, moveR2);
+    const stateAfterReCheckers = engine.applyMove(state, moveR2);
 
-    // Verify Brax enforcement is active
-    expect(stateAfterBrax.activeBrax).not.toBeNull();
-    expect(stateAfterBrax.activeBrax?.callerColor).toBe('RED');
-    expect(stateAfterBrax.activeBrax?.victimColor).toBe('BLUE');
-    expect(stateAfterBrax.activeBrax?.threatenedPieceIds).toContain('B1');
-    expect(stateAfterBrax.activeBrax?.threatenedPieceIds).not.toContain('B2');
+    // Verify ReCheckers enforcement is active
+    expect(stateAfterReCheckers.activeReCheckers).not.toBeNull();
+    expect(stateAfterReCheckers.activeReCheckers?.callerColor).toBe('RED');
+    expect(stateAfterReCheckers.activeReCheckers?.victimColor).toBe('BLUE');
+    expect(stateAfterReCheckers.activeReCheckers?.threatenedPieceIds).toContain('B1');
+    expect(stateAfterReCheckers.activeReCheckers?.threatenedPieceIds).not.toContain('B2');
 
     // On BLUE's turn:
-    expect(stateAfterBrax.turn).toBe('BLUE');
+    expect(stateAfterReCheckers.turn).toBe('BLUE');
 
     // B2 is NOT threatened -> getValidMoves must return empty array!
-    const b2Moves = engine.getValidMoves(stateAfterBrax, 'B2');
+    const b2Moves = engine.getValidMoves(stateAfterReCheckers, 'B2');
     expect(b2Moves).toEqual([]);
 
     // B1 IS threatened -> getValidMoves must contain legal escape/moves
-    const b1Moves = engine.getValidMoves(stateAfterBrax, 'B1');
+    const b1Moves = engine.getValidMoves(stateAfterReCheckers, 'B1');
     expect(b1Moves.length).toBeGreaterThan(0);
 
     // Attempting to move B2 anyway must fail validation
@@ -324,22 +324,22 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
       pieceId: 'B2',
       to: { x: 7, y: 8 },
     };
-    const b2Validation = engine.validateMove(stateAfterBrax, illegalB2Move);
+    const b2Validation = engine.validateMove(stateAfterReCheckers, illegalB2Move);
     expect(b2Validation.valid).toBe(false);
-    expect(b2Validation.reason).toContain('Brax was called');
+    expect(b2Validation.reason).toContain('ReCheckers was called');
 
-    // Executing legal move with threatened piece B1 resolves Brax
+    // Executing legal move with threatened piece B1 resolves ReCheckers
     const legalB1Move: MoveAction = {
       pieceId: 'B1',
       to: b1Moves[0].to,
     };
-    const stateAfterEscape = engine.applyMove(stateAfterBrax, legalB1Move);
+    const stateAfterEscape = engine.applyMove(stateAfterReCheckers, legalB1Move);
     expect(stateAfterEscape.turn).toBe('RED');
-    // Brax enforcement fulfilled
-    expect(stateAfterEscape.activeBrax).toBeNull();
+    // ReCheckers enforcement fulfilled
+    expect(stateAfterEscape.activeReCheckers).toBeNull();
   });
 
-  it('3b. refuses Brax for a move whose piece creates no threat, even while an older threat stands', () => {
+  it('3b. refuses ReCheckers for a move whose piece creates no threat, even while an older threat stands', () => {
     const state = createEmptyTestState();
 
     // R2 already threatens B1 - that threat was established on an earlier turn.
@@ -352,22 +352,22 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     // The standing threat must not be replayable by moving an unrelated piece.
     const r1Moves = engine.getValidMoves(state, 'R1');
     expect(r1Moves.length).toBeGreaterThan(0);
-    expect(r1Moves.some((m) => m.callBrax === true)).toBe(false);
+    expect(r1Moves.some((m) => m.callReCheckers === true)).toBe(false);
 
     const declaringMove: MoveAction = {
       pieceId: 'R1',
       to: r1Moves[0].to,
       mid: r1Moves[0].mid,
-      callBrax: true,
+      callReCheckers: true,
     };
 
     const validation = engine.validateMove(state, declaringMove);
     expect(validation.valid).toBe(false);
     expect(validation.reason).toContain('does not create a new threat');
 
-    // Played plainly the move is legal, and it leaves no Brax enforcement behind.
-    const next = engine.applyMove(state, { ...declaringMove, callBrax: false });
-    expect(next.activeBrax).toBeNull();
+    // Played plainly the move is legal, and it leaves no ReCheckers enforcement behind.
+    const next = engine.applyMove(state, { ...declaringMove, callReCheckers: false });
+    expect(next.activeReCheckers).toBeNull();
   });
 
   it('4. executes capture at destination node P2 during distance 2 move', () => {
@@ -444,7 +444,7 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     expect(next.result?.reason).toBe('ALL_PIECES_CAPTURED');
   });
 
-  it('permanently disables Brax calling when pieces reach 2:1 endgame', () => {
+  it('permanently disables ReCheckers calling when pieces reach 2:1 endgame', () => {
     const state = createEmptyTestState();
 
     // 2 RED pieces and 1 BLUE piece (2:1 endgame)
@@ -452,16 +452,16 @@ describe('Brax Rules Engine - Geometry & Movement', () => {
     state.board['7,0'] = { id: 'R2', color: 'RED', side: 'PLAIN' };
     state.board['1,1'] = { id: 'B1', color: 'BLUE', side: 'PLAIN' };
 
-    // Moving R2 to threaten B1 or calling Brax
-    // In a 2:1 state, Brax must be rejected
-    const moveWithBrax: MoveAction = {
+    // Moving R2 to threaten B1 or calling ReCheckers
+    // In a 2:1 state, ReCheckers must be rejected
+    const moveWithReCheckers: MoveAction = {
       pieceId: 'R1',
       to: { x: 0, y: 0 },
-      callBrax: true,
+      callReCheckers: true,
     };
 
-    const validation = engine.validateMove(state, moveWithBrax);
-    // Even if threat existed, Brax in 2:1 state must be disallowed
+    const validation = engine.validateMove(state, moveWithReCheckers);
+    // Even if threat existed, ReCheckers in 2:1 state must be disallowed
     expect(validation.valid).toBe(false);
     expect(validation.reason).toContain('2:1');
   });

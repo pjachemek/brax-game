@@ -1,30 +1,30 @@
 /**
- * Brax AI - The bot, as everything outside this folder sees it.
+ * ReCheckers AI - The bot, as everything outside this folder sees it.
  *
- * `BraxBot` owns the two things a caller should not have to assemble itself:
+ * `ReCheckersBot` owns the two things a caller should not have to assemble itself:
  * the search configured for a difficulty, and the Experience Book those
  * searches read from and every finished game writes back to. One bot instance
  * per process is the intended shape - the book is the point, and a book that is
  * rebuilt per move learns nothing.
  *
  * The declaration decision lives here rather than inside the search. Whether to
- * call "Brax!" does not change where the piece lands, so folding it into the
+ * call "Re-Checkers!" does not change where the piece lands, so folding it into the
  * move list would double the branching factor for free; instead the search
- * settles the move and `shouldDeclareBrax` then asks the narrower question of
+ * settles the move and `shouldDeclareReCheckers` then asks the narrower question of
  * whether forcing the opponent's reply is actually worth the tempo.
  */
 
 import type { GameState, MoveAction, PlayerColor } from '../types.ts';
-import { BraxEngine } from '../engine.ts';
+import { ReCheckersEngine } from '../engine.ts';
 import { calculateThreats, getThreatsCreatedByMove, getUniqueThreatenedPieceIds } from '../threats.ts';
 import { MCTSSearch } from './mcts.ts';
 import { ExperienceBook, type ExperienceBookOptions } from './experience.ts';
-import { shouldDeclareBrax } from './evaluation.ts';
+import { shouldDeclareReCheckers } from './evaluation.ts';
 import { listBotMoves, simulateMove } from './simulation.ts';
 import type { AIDifficulty, BotMove, MoveHistoryItem, SearchResult } from './types.ts';
 
-export interface BraxBotOptions {
-  engine?: BraxEngine;
+export interface ReCheckersBotOptions {
+  engine?: ReCheckersEngine;
   experience?: ExperienceBook;
   /** Used when no book is supplied; lets a host pick its own storage. */
   experienceOptions?: ExperienceBookOptions;
@@ -36,13 +36,13 @@ export interface BotMoveDecision {
   search: SearchResult;
 }
 
-export class BraxBot {
-  private readonly engine: BraxEngine;
+export class ReCheckersBot {
+  private readonly engine: ReCheckersEngine;
   private readonly book: ExperienceBook;
   private readonly random: () => number;
 
-  constructor(options: BraxBotOptions = {}) {
-    this.engine = options.engine ?? new BraxEngine();
+  constructor(options: ReCheckersBotOptions = {}) {
+    this.engine = options.engine ?? new ReCheckersEngine();
     this.book =
       options.experience ??
       new ExperienceBook({ engine: this.engine, ...options.experienceOptions });
@@ -79,7 +79,7 @@ export class BraxBot {
     const result = await search.searchAsync(state, botColor);
     if (!result.move) return null;
 
-    return { move: this.withBraxDecision(state, result.move), search: result };
+    return { move: this.withReCheckersDecision(state, result.move), search: result };
   }
 
   /** The blocking variant, for a server or a test that has no frame to protect. */
@@ -99,7 +99,7 @@ export class BraxBot {
     const result = search.search(state, botColor);
     if (!result.move) return null;
 
-    return { move: this.withBraxDecision(state, result.move), search: result };
+    return { move: this.withReCheckersDecision(state, result.move), search: result };
   }
 
   /** Credits a finished game to the book. See ExperienceBook.record. */
@@ -116,7 +116,7 @@ export class BraxBot {
   }
 
   /**
-   * Decides whether the chosen move should also declare "Brax!".
+   * Decides whether the chosen move should also declare "Re-Checkers!".
    *
    * The engine is the authority on whether a declaration is *allowed* - only a
    * move that creates a new threat may declare, and the right lapses altogether
@@ -124,10 +124,10 @@ export class BraxBot {
    * than re-derived. Only if the answer is yes does the heuristic get to decide
    * whether declaring is a good idea.
    */
-  private withBraxDecision(state: GameState, move: MoveAction): MoveAction {
-    const plain: MoveAction = { ...move, callBrax: false };
+  private withReCheckersDecision(state: GameState, move: MoveAction): MoveAction {
+    const plain: MoveAction = { ...move, callReCheckers: false };
 
-    const declaring: MoveAction = { ...move, callBrax: true };
+    const declaring: MoveAction = { ...move, callReCheckers: true };
     if (!this.engine.validateMove(state, declaring).valid) return plain;
 
     // Which pieces the declaration would pin down, read off the position the
@@ -140,7 +140,7 @@ export class BraxBot {
     const created = getThreatsCreatedByMove(threats, move.pieceId);
     const threatenedIds = getUniqueThreatenedPieceIds(created);
 
-    return shouldDeclareBrax(state, botMove, threatenedIds) ? declaring : plain;
+    return shouldDeclareReCheckers(state, botMove, threatenedIds) ? declaring : plain;
   }
 
   /** Finds the generated move matching `action`, for its path and capture count. */

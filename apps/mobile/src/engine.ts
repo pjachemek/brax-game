@@ -1,5 +1,5 @@
 /**
- * Brax Mobile - transport wiring.
+ * ReCheckers Mobile - transport wiring.
  *
  * The only place in the app that knows where the rules engine runs. This build
  * is HTTP-only: the rulebook is never bundled into the device binary, so a
@@ -14,8 +14,8 @@
  *   EXPO_PUBLIC_ENGINE_TIMEOUT_MS  per-request timeout, ms (default 10000)
  */
 
-import { HttpEngineClient } from '@brax/engine-client/http';
-import type { BraxEngineClient } from '@brax/engine-client';
+import { HttpEngineClient } from '@re-checkers/engine-client/http';
+import type { ReCheckersEngineClient } from '@re-checkers/engine-client';
 
 export const ENGINE_URL = process.env.EXPO_PUBLIC_ENGINE_URL ?? '';
 
@@ -23,12 +23,12 @@ const TIMEOUT_MS = process.env.EXPO_PUBLIC_ENGINE_TIMEOUT_MS
   ? Number(process.env.EXPO_PUBLIC_ENGINE_TIMEOUT_MS)
   : undefined;
 
-export function createAppEngineClient(): BraxEngineClient {
+export function createAppEngineClient(): ReCheckersEngineClient {
   if (!ENGINE_URL) {
     // Failing loudly at startup beats a binary that looks fine in the store and
     // cannot open a single game.
     throw new Error(
-      'EXPO_PUBLIC_ENGINE_URL is not set. Point it at the Brax engine service before building.'
+      'EXPO_PUBLIC_ENGINE_URL is not set. Point it at the ReCheckers engine service before building.'
     );
   }
 

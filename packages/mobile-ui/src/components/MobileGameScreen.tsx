@@ -1,5 +1,5 @@
 /**
- * Brax Mobile UI - Primary Screen Component (React Native)
+ * ReCheckers Mobile UI - Primary Screen Component (React Native)
  *
  * The screen is laid out around a single priority: while a game is on, the board
  * is the interface. Everything else is either a one-line header (whose turn it is,
@@ -46,12 +46,12 @@ const INITIAL_METRICS = initialWindowMetrics ?? {
   },
   insets: { top: 0, left: 0, right: 0, bottom: 0 },
 };
-import { AI_DIFFICULTIES, DIFFICULTY_PROFILES } from '@brax/engine/view';
-import type { AIDifficulty, PlayerColor } from '@brax/engine/view';
+import { AI_DIFFICULTIES, DIFFICULTY_PROFILES } from '@re-checkers/engine/view';
+import type { AIDifficulty, PlayerColor } from '@re-checkers/engine/view';
 import { PLAYER_PALETTE, SIGNAL } from '../theme.ts';
 import { useGameStore, bootstrapGameSession, selectIsBotThinking } from '../store/useGameStore.ts';
-import { BraxBoard } from './BraxBoard.tsx';
-import { BraxModal } from './BraxModal.tsx';
+import { ReCheckersBoard } from './ReCheckersBoard.tsx';
+import { ReCheckersModal } from './ReCheckersModal.tsx';
 
 /** How long the new-game button stays armed before it disarms itself. */
 const RESET_CONFIRM_MS = 4000;
@@ -177,7 +177,7 @@ const MobileGameScreenContent: React.FC = () => {
     return (
       <SafeAreaView style={[styles.safeArea, WEB_UNSELECTABLE]}>
         <View style={styles.connectingWrapper}>
-          <Text style={styles.connectingTitle}>BRAX</Text>
+          <Text style={styles.connectingTitle}>RE-CHECKERS</Text>
           <Text style={styles.connectingText}>
             {connectionError ?? 'Łączenie z silnikiem gry...'}
           </Text>
@@ -299,7 +299,7 @@ const MobileGameScreenContent: React.FC = () => {
             if (side > 0) setBoardSize(side);
           }}
         >
-          {boardSize !== null && <BraxBoard size={boardSize} />}
+          {boardSize !== null && <ReCheckersBoard size={boardSize} />}
         </View>
       </View>
 
@@ -341,8 +341,8 @@ const MobileGameScreenContent: React.FC = () => {
 
       {setupOpen && <BotSetupSheet onClose={() => setSetupOpen(false)} />}
 
-      {/* Brax Choice Modal */}
-      <BraxModal />
+      {/* ReCheckers Choice Modal */}
+      <ReCheckersModal />
     </SafeAreaView>
   );
 };

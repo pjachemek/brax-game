@@ -1,10 +1,10 @@
 /**
- * Brax Rules Engine - FoxAndGeeseMode
- * Demonstrates the extensibility of BraxGameMode interface for historical Denham variants.
+ * ReCheckers Rules Engine - FoxAndGeeseMode
+ * Demonstrates the extensibility of ReCheckersGameMode interface for historical Denham variants.
  */
 
 import {
-  BraxGameMode,
+  ReCheckersGameMode,
   GameState,
   MoveAction,
   PlayerColor,
@@ -14,18 +14,18 @@ import {
   Piece,
 } from '../types.ts';
 import { BOARD_SIZE, coordToKey } from '../geometry.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from '../board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from '../board.ts';
 import { TwoPlayerClassicMode } from './two-player-classic.ts';
 
-export class FoxAndGeeseBraxMode implements BraxGameMode {
+export class FoxAndGeeseReCheckersMode implements ReCheckersGameMode {
   public readonly id = 'fox_and_geese';
-  public readonly name = 'Fox & Geese Brax';
+  public readonly name = 'Fox & Geese ReCheckers';
   public readonly description =
-    'Asymmetrical Brax variant: 1 Fox (Red, Marked) vs 8 Geese (Blue, Plain). Geese aim to trap the Fox; Fox aims to capture Geese.';
+    'Asymmetrical ReCheckers variant: 1 Fox (Red, Marked) vs 8 Geese (Blue, Plain). Geese aim to trap the Fox; Fox aims to capture Geese.';
 
   private readonly delegate: TwoPlayerClassicMode;
 
-  constructor(private readonly boardGraph: BoardGraph = CANONICAL_BRAX_BOARD) {
+  constructor(private readonly boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD) {
     this.delegate = new TwoPlayerClassicMode(boardGraph);
   }
 
@@ -57,8 +57,8 @@ export class FoxAndGeeseBraxMode implements BraxGameMode {
       turn: 'RED',
       turnNumber: 1,
       capturedPieces: { RED: [], BLUE: [] },
-      activeBrax: null,
-      lastBraxCallTurn: { RED: null, BLUE: null },
+      activeReCheckers: null,
+      lastReCheckersCallTurn: { RED: null, BLUE: null },
       history: [],
       result: null,
       gameModeId: this.id,

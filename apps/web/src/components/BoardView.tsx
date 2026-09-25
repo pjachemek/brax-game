@@ -1,5 +1,5 @@
 /**
- * Brax Board SVG Component
+ * ReCheckers Board SVG Component
  * Renders the 9x9 intersection grid, colored orthogonal segments (Red/Blue),
  * pieces, threatened indicators, and legal move trajectories.
  */
@@ -12,17 +12,17 @@ import type {
   Piece,
   PlayerColor,
   ThreatenedPieceInfo,
-} from '@brax/engine/view';
+} from '@re-checkers/engine/view';
 import {
   BOARD_SIZE,
-  CANONICAL_BRAX_BOARD,
+  CANONICAL_RE_CHECKERS_BOARD,
   COLUMN_LABELS,
   ROW_LABELS,
   areCoordsEqual,
   coordToAlgebraic,
   coordToKey,
   getPieceAt,
-} from '@brax/engine/view';
+} from '@re-checkers/engine/view';
 
 interface BoardViewProps {
   state: GameState;
@@ -102,13 +102,13 @@ export const BoardView: React.FC<BoardViewProps> = ({
     }
   }
 
-  const edges = CANONICAL_BRAX_BOARD.getAllEdges();
+  const edges = CANONICAL_RE_CHECKERS_BOARD.getAllEdges();
 
   return (
-    <div className="relative flex flex-col items-center select-none" id="brax-board-container">
+    <div className="relative flex flex-col items-center select-none" id="re-checkers-board-container">
       <div className="relative bg-amber-50/40 rounded-2xl p-2 sm:p-4 border border-amber-900/15 shadow-md">
         <svg
-          id="brax-svg-board"
+          id="re-checkers-svg-board"
           viewBox={`0 0 ${boardPixelSize} ${boardPixelSize}`}
           className="w-full max-w-[540px] aspect-square block"
           style={{ touchAction: 'manipulation' }}
@@ -324,12 +324,12 @@ export const BoardView: React.FC<BoardViewProps> = ({
             const captureMove = destMap.get(key)?.[0] ?? sweepMap.get(key);
             const isCaptureTarget = Boolean(captureMove);
 
-            // Brax restricted piece
-            const isRestrictedByBrax =
-              state.activeBrax &&
-              state.activeBrax.victimColor === state.turn &&
+            // ReCheckers restricted piece
+            const isRestrictedByReCheckers =
+              state.activeReCheckers &&
+              state.activeReCheckers.victimColor === state.turn &&
               isMyTurn &&
-              !state.activeBrax.threatenedPieceIds.includes(piece.id);
+              !state.activeReCheckers.threatenedPieceIds.includes(piece.id);
 
             return (
               <g
@@ -339,9 +339,9 @@ export const BoardView: React.FC<BoardViewProps> = ({
                 className={`transition-transform duration-150 ${
                   isCaptureTarget
                     ? 'cursor-pointer hover:scale-110 active:scale-95'
-                    : interactive && isMyTurn && !isRestrictedByBrax
+                    : interactive && isMyTurn && !isRestrictedByReCheckers
                     ? 'cursor-pointer hover:scale-105'
-                    : isRestrictedByBrax
+                    : isRestrictedByReCheckers
                     ? 'cursor-not-allowed opacity-50'
                     : interactive && !isMyTurn
                     ? 'cursor-pointer hover:opacity-90'
@@ -353,7 +353,7 @@ export const BoardView: React.FC<BoardViewProps> = ({
                     onExecuteMove(captureMove);
                     return;
                   }
-                  if (isMyTurn && !isRestrictedByBrax) {
+                  if (isMyTurn && !isRestrictedByReCheckers) {
                     onSelectPiece(piece.id);
                   } else if (!isMyTurn) {
                     onSelectPiece(piece.id);

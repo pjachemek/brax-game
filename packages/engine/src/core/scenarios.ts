@@ -1,6 +1,6 @@
 /**
- * Brax Rules Engine - Interactive Scenarios & Test Presets
- * Pre-configured board setups allowing instant visual verification of Brax mechanics.
+ * ReCheckers Rules Engine - Interactive Scenarios & Test Presets
+ * Pre-configured board setups allowing instant visual verification of ReCheckers mechanics.
  */
 
 import { GameState, Piece } from './types.ts';
@@ -43,8 +43,8 @@ export function getPresetScenarios(): GameScenario[] {
         turn: 'RED',
         turnNumber: 1,
         capturedPieces: { RED: [], BLUE: [] },
-        activeBrax: null,
-        lastBraxCallTurn: { RED: null, BLUE: null },
+        activeReCheckers: null,
+        lastReCheckersCallTurn: { RED: null, BLUE: null },
         history: [],
         result: null,
         gameModeId: 'two_player',
@@ -68,8 +68,8 @@ export function getPresetScenarios(): GameScenario[] {
         turn: 'RED',
         turnNumber: 1,
         capturedPieces: { RED: [], BLUE: [] },
-        activeBrax: null,
-        lastBraxCallTurn: { RED: null, BLUE: null },
+        activeReCheckers: null,
+        lastReCheckersCallTurn: { RED: null, BLUE: null },
         history: [],
         result: null,
         gameModeId: 'two_player',
@@ -77,11 +77,11 @@ export function getPresetScenarios(): GameScenario[] {
       },
     },
     {
-      id: 'scenario_brax_enforcement',
-      title: '3. Przymus ruchu po zawołaniu Brax',
+      id: 'scenario_re_checkers_enforcement',
+      title: '3. Przymus ruchu po zawołaniu ReCheckers',
       badge: 'Zasada 3',
       description:
-        'Gracz RED zawołał „Brax!” po zagrożeniu pionka B1 na D2. Tura gracza BLUE: gracz BLUE MOŻE poruszyć TYLKO zagrożony pionek B1. Pionek B2 na H8 jest zablokowany.',
+        'Gracz RED zawołał „Re-Checkers!” po zagrożeniu pionka B1 na D2. Tura gracza BLUE: gracz BLUE MOŻE poruszyć TYLKO zagrożony pionek B1. Pionek B2 na H8 jest zablokowany.',
       hint: 'Spróbuj kliknąć bezpieczny pionek B2 – zobaczysz informację o zakazie. Następnie kliknij zagrożony pionek B1.',
       state: {
         board: {
@@ -93,13 +93,13 @@ export function getPresetScenarios(): GameScenario[] {
         turn: 'BLUE',
         turnNumber: 2,
         capturedPieces: { RED: [], BLUE: [] },
-        activeBrax: {
+        activeReCheckers: {
           callerColor: 'RED',
           victimColor: 'BLUE',
           threatenedPieceIds: ['B1'],
           enforcedAtTurnNumber: 1,
         },
-        lastBraxCallTurn: { RED: 1, BLUE: null },
+        lastReCheckersCallTurn: { RED: 1, BLUE: null },
         history: [
           {
             moveNumber: 1,
@@ -108,8 +108,8 @@ export function getPresetScenarios(): GameScenario[] {
             from: { x: 2, y: 0 },
             to: { x: 3, y: 0 },
             distance: 1,
-            calledBrax: true,
-            algebraic: 'C1-D1 (Brax!)',
+            calledReCheckers: true,
+            algebraic: 'C1-D1 (Re-Checkers!)',
             timestamp: Date.now() - 10000,
           },
         ],
@@ -135,8 +135,8 @@ export function getPresetScenarios(): GameScenario[] {
         turn: 'RED',
         turnNumber: 1,
         capturedPieces: { RED: [], BLUE: [] },
-        activeBrax: null,
-        lastBraxCallTurn: { RED: null, BLUE: null },
+        activeReCheckers: null,
+        lastReCheckersCallTurn: { RED: null, BLUE: null },
         history: [],
         result: null,
         gameModeId: 'two_player',
@@ -161,8 +161,8 @@ export function getPresetScenarios(): GameScenario[] {
         turn: 'RED',
         turnNumber: 1,
         capturedPieces: { RED: [], BLUE: [] },
-        activeBrax: null,
-        lastBraxCallTurn: { RED: null, BLUE: null },
+        activeReCheckers: null,
+        lastReCheckersCallTurn: { RED: null, BLUE: null },
         history: [],
         result: null,
         gameModeId: 'two_player',
@@ -171,11 +171,11 @@ export function getPresetScenarios(): GameScenario[] {
     },
     {
       id: 'scenario_endgame_2v1',
-      title: '5. Końcówka 2:1 (Prawo do Brax wygasło)',
+      title: '5. Końcówka 2:1 (Prawo do ReCheckers wygasło)',
       badge: 'Końcówka',
       description:
-        'Na planszy zostały 2 pionki RED i 1 pionek BLUE. Zgodnie z regułą Brax, prawo do wołania Brax wygasło bezpowrotnie dla obu stron.',
-      hint: 'Nawet jeśli wykonasz ruch grożący biciem, przycisk Brax pozostanie niedostępny z powodu stanu 2:1.',
+        'Na planszy zostały 2 pionki RED i 1 pionek BLUE. Zgodnie z regułą ReCheckers, prawo do wołania ReCheckers wygasło bezpowrotnie dla obu stron.',
+      hint: 'Nawet jeśli wykonasz ruch grożący biciem, przycisk ReCheckers pozostanie niedostępny z powodu stanu 2:1.',
       state: {
         board: {
           ...emptyBoard(),
@@ -202,8 +202,8 @@ export function getPresetScenarios(): GameScenario[] {
             { id: 'R7', color: 'RED', side: 'PLAIN' },
           ],
         },
-        activeBrax: null,
-        lastBraxCallTurn: { RED: null, BLUE: null },
+        activeReCheckers: null,
+        lastReCheckersCallTurn: { RED: null, BLUE: null },
         history: [],
         result: null,
         gameModeId: 'two_player',

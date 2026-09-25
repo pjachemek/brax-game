@@ -1,5 +1,5 @@
 /**
- * Brax AI - Canonical position hashing (Zobrist).
+ * ReCheckers AI - Canonical position hashing (Zobrist).
  *
  * The Experience Book is keyed by position, so the key has to mean the same
  * thing next week, in another browser, and on the server. That rules out
@@ -12,7 +12,7 @@
  * the side to move. Deliberately not hashed: turn number, capture lists and
  * history — two positions that differ only in how they were reached are the
  * same position to play from, and sharing their statistics is the entire point.
- * `activeBrax` *is* folded in, because a standing declaration changes which
+ * `activeReCheckers` *is* folded in, because a standing declaration changes which
  * moves are legal and so which action statistics apply.
  */
 
@@ -44,7 +44,7 @@ const PIECE_KINDS = 4;
 const TABLE_HI = new Uint32Array(NODE_COUNT * PIECE_KINDS);
 const TABLE_LO = new Uint32Array(NODE_COUNT * PIECE_KINDS);
 
-const rng = seededRandom(0x42524158); // "BRAX"
+const rng = seededRandom(0x42524158); // arbitrary fixed seed
 for (let i = 0; i < TABLE_HI.length; i++) {
   TABLE_HI[i] = (rng() * 0x100000000) >>> 0;
   TABLE_LO[i] = (rng() * 0x100000000) >>> 0;
@@ -52,8 +52,8 @@ for (let i = 0; i < TABLE_HI.length; i++) {
 
 const TURN_HI = (rng() * 0x100000000) >>> 0;
 const TURN_LO = (rng() * 0x100000000) >>> 0;
-const BRAX_HI = (rng() * 0x100000000) >>> 0;
-const BRAX_LO = (rng() * 0x100000000) >>> 0;
+const RE_CHECKERS_HI = (rng() * 0x100000000) >>> 0;
+const RE_CHECKERS_LO = (rng() * 0x100000000) >>> 0;
 
 function pieceKind(piece: Piece): number {
   const colorBit = piece.color === 'RED' ? 0 : 2;
@@ -68,7 +68,7 @@ function toHex(hi: number, lo: number): string {
 /**
  * The canonical hash of a position: a 16-character hex string.
  *
- * Positions are *not* folded across colours or mirrored. The Brax board's
+ * Positions are *not* folded across colours or mirrored. The ReCheckers board's
  * segment colouring is neither colour-symmetric nor mirror-symmetric — RED and
  * BLUE reach different ways out of the same node — so identifying a position
  * with its reflection would merge two genuinely different positions and teach
@@ -94,11 +94,11 @@ export function hashState(state: GameState): string {
   }
 
   // A live declaration restricts the victim to a subset of their pieces, so a
-  // position under Brax is a different position to choose a move in.
-  if (state.activeBrax) {
-    hi ^= BRAX_HI;
-    lo ^= BRAX_LO;
-    for (const pieceId of [...state.activeBrax.threatenedPieceIds].sort()) {
+  // position under ReCheckers is a different position to choose a move in.
+  if (state.activeReCheckers) {
+    hi ^= RE_CHECKERS_HI;
+    lo ^= RE_CHECKERS_LO;
+    for (const pieceId of [...state.activeReCheckers.threatenedPieceIds].sort()) {
       for (let i = 0; i < pieceId.length; i++) {
         hi = (Math.imul(hi ^ pieceId.charCodeAt(i), 0x85ebca6b) ^ (hi >>> 13)) >>> 0;
         lo = (Math.imul(lo ^ pieceId.charCodeAt(i), 0xc2b2ae35) ^ (lo >>> 16)) >>> 0;

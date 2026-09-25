@@ -1,9 +1,9 @@
 /**
- * Brax Web - Session hook for the workbench board.
+ * ReCheckers Web - Session hook for the workbench board.
  *
  * The web board is a second front end onto the same engine, so it goes through
- * BraxEngineClient exactly like the mobile store does. It holds no rules: the
- * bot, threat calculation, Brax eligibility, undo and victory all come from the
+ * ReCheckersEngineClient exactly like the mobile store does. It holds no rules: the
+ * bot, threat calculation, ReCheckers eligibility, undo and victory all come from the
  * engine, local or hosted.
  */
 
@@ -16,12 +16,12 @@ import type {
   PlayerColor,
   PlayerTurnContext,
   ThreatenedPieceInfo,
-} from '@brax/engine/view';
-import { botPacingDelay, findPieceCoord, isEngineError } from '@brax/engine/view';
+} from '@re-checkers/engine/view';
+import { botPacingDelay, findPieceCoord, isEngineError } from '@re-checkers/engine/view';
 
 import { getEngineClient } from '../services/engineClient.ts';
 
-export interface BraxSession {
+export interface ReCheckersSession {
   state: GameState | null;
   gameId: string | null;
   canUndo: boolean;
@@ -44,7 +44,7 @@ export interface BraxSession {
   isInputLocked: boolean;
 
   selectPiece: (pieceId: string) => Promise<void>;
-  executeMove: (move: MoveAction, callBraxIfPossible: boolean) => Promise<void>;
+  executeMove: (move: MoveAction, callReCheckersIfPossible: boolean) => Promise<void>;
   playBotMove: (botColor: PlayerColor, difficulty?: AIDifficulty) => Promise<void>;
   undoMove: () => Promise<void>;
   resetGame: (modeId?: string) => Promise<void>;
@@ -63,7 +63,7 @@ const DEFAULT_BOT_CONFIG: BotPlayConfig = {
   difficulty: 'intermediate',
 };
 
-export function useBraxSession(initialModeId = 'two_player'): BraxSession {
+export function useReCheckersSession(initialModeId = 'two_player'): ReCheckersSession {
   const client = getEngineClient();
 
   const [gameId, setGameId] = useState<string | null>(null);
@@ -200,11 +200,11 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
         return;
       }
 
-      // Brax enforcement is recorded in the state the engine returned.
-      if (state.activeBrax && state.activeBrax.victimColor === state.turn) {
-        if (!state.activeBrax.threatenedPieceIds.includes(pieceId)) {
+      // ReCheckers enforcement is recorded in the state the engine returned.
+      if (state.activeReCheckers && state.activeReCheckers.victimColor === state.turn) {
+        if (!state.activeReCheckers.threatenedPieceIds.includes(pieceId)) {
           setStatusMessage(
-            `Wymuszenie Brax! Przeciwnik wymusił ruch zagrożonym pionkiem (${state.activeBrax.threatenedPieceIds.join(
+            `Wymuszenie Re-Checkers! Przeciwnik wymusił ruch zagrożonym pionkiem (${state.activeReCheckers.threatenedPieceIds.join(
               ', '
             )}). Ten pionek nie może się ruszyć.`
           );
@@ -243,19 +243,19 @@ export function useBraxSession(initialModeId = 'two_player'): BraxSession {
   );
 
   const executeMove = useCallback(
-    async (move: MoveAction, callBraxIfPossible: boolean) => {
+    async (move: MoveAction, callReCheckersIfPossible: boolean) => {
       if (!gameId || isBotThinking) return;
       setIsBusy(true);
       try {
-        // Whether Brax may be declared is the engine's call, not a guess here.
-        let outgoing: MoveAction = { ...move, callBrax: false };
-        if (callBraxIfPossible) {
+        // Whether ReCheckers may be declared is the engine's call, not a guess here.
+        let outgoing: MoveAction = { ...move, callReCheckers: false };
+        if (callReCheckersIfPossible) {
           const options = await client.getMoveOptions(gameId, move.pieceId, move.to);
-          if (options.canCallBrax) {
+          if (options.canCallReCheckers) {
             // When the caller left the path open, take the declaring path the
             // engine returned - another path to the same node may not declare.
             const base = move.mid ? move : options.moves[0] ?? move;
-            outgoing = { ...base, callBrax: true };
+            outgoing = { ...base, callReCheckers: true };
           }
         }
         applyOutcome(await client.applyMove(gameId, outgoing, { expectedRevision: revision }));

@@ -9,13 +9,14 @@
 import type { ExpoConfig } from 'expo/config';
 
 const config: ExpoConfig = {
-  name: 'Brax',
-  slug: 'brax',
+  name: 'Re-Checkers',
+  slug: 're-checkers',
   version: '1.0.0',
   orientation: 'portrait',
-  scheme: 'brax',
+  scheme: 're-checkers',
   userInterfaceStyle: 'dark',
-  newArchEnabled: true,
+  // No `newArchEnabled`: the New Architecture is the only one RN 0.86 ships,
+  // so the key was dropped from the config schema.
   // Store artwork is not in the repo yet; Expo's defaults are used until it is.
   // See apps/mobile/assets/README.md for the files to add and the keys to
   // uncomment — a submission will be rejected without them.
@@ -24,7 +25,7 @@ const config: ExpoConfig = {
   // splash: { image: './assets/splash.png', resizeMode: 'contain', backgroundColor: '#0f172a' },
   assetBundlePatterns: ['**/*'],
   ios: {
-    bundleIdentifier: 'com.sciamus.brax',
+    bundleIdentifier: 'com.pjit.recheckers',
     supportsTablet: true,
     // The engine is reached over TLS in every environment that ships; plain
     // http is only for a LAN dev server, which the dev client allows anyway.
@@ -33,14 +34,15 @@ const config: ExpoConfig = {
     },
   },
   android: {
-    package: 'com.sciamus.brax',
+    package: 'com.pjit.recheckers',
     // adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#0f172a' },
-    edgeToEdgeEnabled: true,
+    // No `edgeToEdgeEnabled`: since SDK 55 Android is always edge-to-edge and
+    // the opt-out key was removed from the config schema.
   },
   extra: {
     eas: {
       // Replace with the id `eas init` writes, or keep it in eas.json.
-      projectId: process.env.EAS_PROJECT_ID,
+      projectId: "5072c2ba-29eb-4544-8795-55eaf13ec9e3",
     },
   },
 };

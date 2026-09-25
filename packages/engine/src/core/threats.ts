@@ -1,6 +1,6 @@
 /**
- * Brax Rules Engine - Threat Calculation & Brax State Machine
- * Calculates enemy pieces threatened by legal attacks and manages Brax eligibility.
+ * ReCheckers Rules Engine - Threat Calculation & ReCheckers State Machine
+ * Calculates enemy pieces threatened by legal attacks and manages ReCheckers eligibility.
  */
 
 import {
@@ -12,7 +12,7 @@ import {
   MovePath,
 } from './types.ts';
 import { areCoordsEqual, coordToKey, isValidCoord } from './geometry.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from './board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from './board.ts';
 import { getRawLegalPathsForPiece, getCapturesAlongPath } from './movement.ts';
 
 /**
@@ -22,7 +22,7 @@ import { getRawLegalPathsForPiece, getCapturesAlongPath } from './movement.ts';
 export function calculateThreats(
   state: GameState,
   attackerColor: PlayerColor,
-  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+  boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD
 ): ThreatenedPieceInfo[] {
   const threats: ThreatenedPieceInfo[] = [];
   const enemyColor: PlayerColor = attackerColor === 'RED' ? 'BLUE' : 'RED';
@@ -50,7 +50,7 @@ export function calculateThreats(
     for (const path of legalPaths) {
       // A move threatens every enemy piece it would displace. On a double
       // capture that is both of them - the one passed and the one landed on are
-      // equally gone at the end of the turn, so both are legitimate Brax targets.
+      // equally gone at the end of the turn, so both are legitimate ReCheckers targets.
       const capturedByPath = getCapturesAlongPath(state, path, attackerColor);
 
       for (const { coord: targetCoord, piece: targetPiece } of capturedByPath) {
@@ -84,11 +84,11 @@ export function calculateThreats(
  * Returns the threats that the piece which has just moved creates from its new
  * position.
  *
- * Brax is declared on a move that *creates* a threat ("po ruchu stwarzającym
+ * ReCheckers is declared on a move that *creates* a threat ("po ruchu stwarzającym
  * zagrożenie"), so only the moved piece can justify the declaration. Without
  * this filter any threat standing anywhere on the board - including one
  * established several turns earlier by a completely different piece - would let
- * a player declare Brax again on every subsequent move, replaying an old Brax.
+ * a player declare ReCheckers again on every subsequent move, replaying an old ReCheckers.
  */
 export function getThreatsCreatedByMove(
   threatsAfterMove: ThreatenedPieceInfo[],
@@ -110,10 +110,10 @@ export function getUniqueThreatenedPieceIds(threats: ThreatenedPieceInfo[]): str
 
 /**
  * Checks if the board state has reached a 2:1 (or 1:1) endgame scenario where
- * the right to call Brax is permanently revoked for both players.
+ * the right to call ReCheckers is permanently revoked for both players.
  *
  * Rule: "Jeśli stosunek pionków to 2:1 (jeden gracz ma 1 pionek, drugi 2),
- * prawo do Braxowania wygasa dla obu stron permanentnie."
+ * prawo do Re-Checkers wygasa dla obu stron permanentnie."
  */
 export function isEndgame1v2(state: GameState): boolean {
   let redCount = 0;
@@ -139,9 +139,9 @@ export function isEndgame1v2(state: GameState): boolean {
 }
 
 /**
- * Determines whether a player has the legal right to declare "Brax" upon completing their move.
+ * Determines whether a player has the legal right to declare "ReCheckers" upon completing their move.
  */
-export function canPlayerCallBrax(
+export function canPlayerCallReCheckers(
   state: GameState,
   playerColor: PlayerColor,
   newThreats: ThreatenedPieceInfo[]
@@ -150,7 +150,7 @@ export function canPlayerCallBrax(
   if (state.turn !== playerColor) {
     return {
       allowed: false,
-      reason: 'Cannot call Brax on opponent’s turn.',
+      reason: 'Cannot call ReCheckers on opponent’s turn.',
     };
   }
 
@@ -158,12 +158,12 @@ export function canPlayerCallBrax(
   if (isEndgame1v2(state)) {
     return {
       allowed: false,
-      reason: 'Brax cannot be called in a 2:1 (or 1:1) endgame. The right has permanently expired.',
+      reason: 'ReCheckers cannot be called in a 2:1 (or 1:1) endgame. The right has permanently expired.',
     };
   }
 
   // 3. The move must CREATE a threat. A threat that was already on the board
-  //    before this move does not entitle the player to declare Brax again.
+  //    before this move does not entitle the player to declare ReCheckers again.
   if (newThreats.length === 0) {
     return {
       allowed: false,

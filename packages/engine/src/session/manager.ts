@@ -1,12 +1,12 @@
 /**
- * Brax Engine - Server-authoritative session manager.
+ * ReCheckers Engine - Server-authoritative session manager.
  *
  * This is the single implementation of "a game in progress". The HTTP service
  * wraps it in routes; the in-process client adapter calls it directly. Both
  * therefore enforce exactly the same rules, history and concurrency semantics.
  */
 
-import { BraxEngine } from '../core/engine.ts';
+import { ReCheckersEngine } from '../core/engine.ts';
 import {
   GameResult,
   GameState,
@@ -19,7 +19,7 @@ import {
 } from '../core/types.ts';
 import { areCoordsEqual } from '../core/geometry.ts';
 import { isEndgame1v2 } from '../core/threats.ts';
-import { BraxBot, isAIDifficulty } from '../core/ai.ts';
+import { ReCheckersBot, isAIDifficulty } from '../core/ai.ts';
 import type { AIDifficulty, MoveHistoryItem } from '../core/ai.ts';
 import { EngineError } from './errors.ts';
 import { InMemoryGameSessionRepository } from './memory-repository.ts';
@@ -36,8 +36,8 @@ import {
 export interface MoveOptionsResult {
   /** Legal moves from the selected piece to the requested destination. */
   moves: MoveAction[];
-  /** True when at least one of them may legally declare Brax. */
-  canCallBrax: boolean;
+  /** True when at least one of them may legally declare ReCheckers. */
+  canCallReCheckers: boolean;
 }
 
 /**
@@ -46,7 +46,7 @@ export interface MoveOptionsResult {
  */
 export interface TurnContextResult {
   context: PlayerTurnContext;
-  /** Brax rights have lapsed for good (Denham's 2:1 / 1:1 endgame rule). */
+  /** ReCheckers rights have lapsed for good (Denham's 2:1 / 1:1 endgame rule). */
   isEndgame: boolean;
   /** Pieces the active player currently threatens. */
   threats: ThreatenedPieceInfo[];
@@ -55,7 +55,7 @@ export interface TurnContextResult {
 }
 
 export interface SessionManagerOptions {
-  engine?: BraxEngine;
+  engine?: ReCheckersEngine;
   repository?: GameSessionRepository;
   /** Maximum retained undo steps per session. Default 100. */
   maxHistory?: number;
@@ -66,7 +66,7 @@ export interface SessionManagerOptions {
    * deployment decides where the Experience Book is persisted; one bot is
    * shared by every session, because a book rebuilt per game learns nothing.
    */
-  bot?: BraxBot;
+  bot?: ReCheckersBot;
   /** Difficulty used when a caller does not name one. */
   defaultDifficulty?: AIDifficulty;
 }
@@ -78,24 +78,24 @@ function defaultIdFactory(): string {
 }
 
 export class GameSessionManager {
-  private readonly engine: BraxEngine;
+  private readonly engine: ReCheckersEngine;
   private readonly repository: GameSessionRepository;
   private readonly maxHistory: number;
   private readonly idFactory: () => string;
-  private readonly bot: BraxBot;
+  private readonly bot: ReCheckersBot;
   private readonly defaultDifficulty: AIDifficulty;
 
   constructor(options: SessionManagerOptions = {}) {
-    this.engine = options.engine ?? new BraxEngine();
+    this.engine = options.engine ?? new ReCheckersEngine();
     this.repository = options.repository ?? new InMemoryGameSessionRepository();
     this.maxHistory = options.maxHistory ?? 100;
     this.idFactory = options.idFactory ?? defaultIdFactory;
-    this.bot = options.bot ?? new BraxBot({ engine: this.engine });
+    this.bot = options.bot ?? new ReCheckersBot({ engine: this.engine });
     this.defaultDifficulty = options.defaultDifficulty ?? 'intermediate';
   }
 
   /** The shared opponent, so a host can inspect or reset what it has learned. */
-  public getBot(): BraxBot {
+  public getBot(): ReCheckersBot {
     return this.bot;
   }
 
@@ -180,7 +180,7 @@ export class GameSessionManager {
   /**
    * Resolves what a player may do by tapping `to` while `pieceId` is selected.
    *
-   * The Brax question ("does this move let me declare?") is a rules question, so
+   * The ReCheckers question ("does this move let me declare?") is a rules question, so
    * it is answered here rather than reconstructed by each UI.
    */
   public async getMoveOptions(
@@ -193,18 +193,18 @@ export class GameSessionManager {
     const matching = legal.filter((m) => areCoordsEqual(m.to, to));
 
     if (matching.length === 0) {
-      return { moves: [], canCallBrax: false };
+      return { moves: [], canCallReCheckers: false };
     }
 
     // Two paths can share a destination while only one of them may declare, so
     // a declaring path is listed first: clients play `moves[0]` and would
-    // otherwise be offered a Brax the move they actually send cannot make.
-    const declaring = matching.find((m) => m.callBrax === true);
+    // otherwise be offered a ReCheckers the move they actually send cannot make.
+    const declaring = matching.find((m) => m.callReCheckers === true);
     const moves = declaring
       ? [declaring, ...matching.filter((m) => m !== declaring)]
       : matching;
 
-    return { moves, canCallBrax: declaring !== undefined };
+    return { moves, canCallReCheckers: declaring !== undefined };
   }
 
   /**
@@ -265,14 +265,14 @@ export class GameSessionManager {
     await this.repository.save(session);
 
     const lastEntry = nextState.history[nextState.history.length - 1];
-    const braxCalled = Boolean(move.callBrax && nextState.activeBrax);
+    const reCheckersCalled = Boolean(move.callReCheckers && nextState.activeReCheckers);
 
     return {
       snapshot: toSnapshot(session),
       capturedPieceId: lastEntry?.capturedPiece?.id ?? null,
       capturedPieceIds: (lastEntry?.capturedPieces ?? []).map((p) => p.id),
-      braxCalled,
-      enforcedPieceIds: braxCalled ? nextState.activeBrax?.threatenedPieceIds ?? [] : [],
+      reCheckersCalled,
+      enforcedPieceIds: reCheckersCalled ? nextState.activeReCheckers?.threatenedPieceIds ?? [] : [],
       move,
     };
   }
@@ -288,7 +288,7 @@ export class GameSessionManager {
    * an in-process client keeps repainting while the bot thinks instead of
    * freezing the board for the length of a Master search.
    *
-   * Passing is not a move Brax has. If the bot is on turn and anything legal
+   * Passing is not a move ReCheckers has. If the bot is on turn and anything legal
    * exists, this plays *something* - a weak move is a move, and a turn silently
    * handed back looks to a player exactly like the game has broken. Null is
    * therefore reserved for the two cases where no move is the truth: it is not
@@ -314,14 +314,14 @@ export class GameSessionManager {
     const session = await this.requireSession(gameId);
     if (session.state.result !== null || session.state.turn !== botColor) return null;
 
-    let decision: Awaited<ReturnType<BraxBot['decide']>> = null;
+    let decision: Awaited<ReturnType<ReCheckersBot['decide']>> = null;
     try {
       decision = await this.bot.decide(session.state, botColor, difficulty);
     } catch (err) {
       // A search that blew up is a bug to fix, not a reason to strand the
       // player on a board nobody can move on. Report it and fall through to a
       // legal move below.
-      console.error('[brax-engine] bot search failed; falling back to a legal move', err);
+      console.error('[re-checkers-engine] bot search failed; falling back to a legal move', err);
     }
 
     // The search ran against the position as it was when it started. Re-reading

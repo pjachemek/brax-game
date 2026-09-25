@@ -1,6 +1,6 @@
-# Brax Engine Service
+# Re-Checkers Engine Service
 
-The Brax rules engine, hosted independently of any client. It owns the
+The Re-Checkers rules engine, hosted independently of any client. It owns the
 canonical state of every game in progress; clients hold a `gameId` and a
 revision number, never a `GameState` they could rewrite.
 
@@ -40,9 +40,9 @@ caller handles a local and a remote failure the same way.
 | `POST`   | `/v1/games/:id/reset` | Restart in place, keeping the id |
 | `PUT`    | `/v1/games/:id/state` | Load a position (scenarios, fixtures) |
 | `GET`    | `/v1/games/:id/moves[?pieceId=]` | Legal moves, for one piece or all |
-| `POST`   | `/v1/games/:id/move-options` | `{ moves, canCallBrax }` for a destination |
+| `POST`   | `/v1/games/:id/move-options` | `{ moves, canCallRe-Checkers }` for a destination |
 | `GET`    | `/v1/games/:id/threats[?color=]` | Threatened pieces |
-| `GET`    | `/v1/games/:id/turn-context` | Turn order, Brax rights, endgame, both sides' threats |
+| `GET`    | `/v1/games/:id/turn-context` | Turn order, Re-Checkers rights, endgame, both sides' threats |
 | `POST`   | `/v1/games/:id/moves/validate` | Dry-run a move |
 | `POST`   | `/v1/games/:id/moves` | Apply a move |
 | `POST`   | `/v1/games/:id/undo` | Roll back one move |
@@ -94,7 +94,7 @@ This service is a deployable unit of its own: a container image, run on k3s.
 
 ```bash
 # Context is the repo root — the service imports packages/engine as a sibling.
-docker build -f services/engine-api/Dockerfile -t brax-engine:dev .
+docker build -f services/engine-api/Dockerfile -t re-checkers-engine:dev .
 kubectl apply -f services/engine-api/deploy/
 ```
 

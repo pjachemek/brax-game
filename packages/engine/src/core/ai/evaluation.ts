@@ -1,5 +1,5 @@
 /**
- * Brax AI - Static evaluation and the Brax declaration heuristic.
+ * ReCheckers AI - Static evaluation and the ReCheckers declaration heuristic.
  *
  * A capped rollout usually stops in a position nobody has won yet, so the
  * search needs a number for "how does this look". Everything here returns a
@@ -9,7 +9,7 @@
  */
 
 import type { GameState, PlayerColor } from '../types.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from '../board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from '../board.ts';
 import { getCapturesAlongPath, getRawLegalPathsForPiece } from '../movement.ts';
 import { countPieces, listBotMoves, simulateMove } from './simulation.ts';
 import type { BotMove } from './types.ts';
@@ -29,7 +29,7 @@ const THREAT_WEIGHT = 0.12;
 export function countThreatenedPieces(
   state: GameState,
   color: PlayerColor,
-  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+  boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD
 ): number {
   const victims = new Set<string>();
 
@@ -53,13 +53,13 @@ export function countThreatenedPieces(
  *
  * Material is normalised by the pieces still on the board rather than by the
  * starting seven, so being a piece up matters far more in a 2v1 endgame than it
- * does on move three - which is exactly how Brax plays, since the right to
+ * does on move three - which is exactly how ReCheckers plays, since the right to
  * declare expires there and a single capture ends the game.
  */
 export function evaluatePosition(
   state: GameState,
   color: PlayerColor,
-  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+  boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD
 ): number {
   const { red, blue } = countPieces(state.board);
   const mine = color === 'RED' ? red : blue;
@@ -86,7 +86,7 @@ export function evaluatePosition(
 }
 
 /**
- * Should the bot declare "Brax!" after playing `move`?
+ * Should the bot declare "Re-Checkers!" after playing `move`?
  *
  * Declaring is not free. It forces the opponent to answer with one of the
  * threatened pieces, which is a real restriction - but a threatened piece
@@ -99,11 +99,11 @@ export function evaluatePosition(
  * The declaration is taken when it costs the opponent something material, and
  * declined when their forced set already contains a reply as good as any other.
  */
-export function shouldDeclareBrax(
+export function shouldDeclareReCheckers(
   state: GameState,
   move: BotMove,
   threatenedPieceIds: string[],
-  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+  boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD
 ): boolean {
   if (threatenedPieceIds.length === 0) return false;
 

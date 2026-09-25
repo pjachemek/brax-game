@@ -34,13 +34,13 @@ export default defineConfig(() => {
         // The app imports the two adapters from their own subpaths rather than
         // through the package index, so a VITE_ENGINE_TRANSPORT=http build can
         // drop the unused local adapter instead of shipping both.
-        '@brax/engine-client/local': path.resolve(repoRoot, 'packages/engine-client/src/local-client.ts'),
-        '@brax/engine-client/http': path.resolve(repoRoot, 'packages/engine-client/src/http-client.ts'),
-        '@brax/engine-client': path.resolve(repoRoot, 'packages/engine-client/src/index.ts'),
-        '@brax/engine/view': path.resolve(repoRoot, 'packages/engine/src/view.ts'),
-        '@brax/engine': path.resolve(repoRoot, 'packages/engine/src/index.ts'),
-        '@brax/mobile-ui/engine': path.resolve(repoRoot, 'packages/mobile-ui/src/engine.ts'),
-        '@brax/mobile-ui': path.resolve(repoRoot, 'packages/mobile-ui/src/index.ts'),
+        '@re-checkers/engine-client/local': path.resolve(repoRoot, 'packages/engine-client/src/local-client.ts'),
+        '@re-checkers/engine-client/http': path.resolve(repoRoot, 'packages/engine-client/src/http-client.ts'),
+        '@re-checkers/engine-client': path.resolve(repoRoot, 'packages/engine-client/src/index.ts'),
+        '@re-checkers/engine/view': path.resolve(repoRoot, 'packages/engine/src/view.ts'),
+        '@re-checkers/engine': path.resolve(repoRoot, 'packages/engine/src/index.ts'),
+        '@re-checkers/mobile-ui/engine': path.resolve(repoRoot, 'packages/mobile-ui/src/engine.ts'),
+        '@re-checkers/mobile-ui': path.resolve(repoRoot, 'packages/mobile-ui/src/index.ts'),
         '@': path.resolve(__dirname, '.'),
         'react-native': 'react-native-web',
         // The mobile package draws with react-native-svg; on web the shim maps

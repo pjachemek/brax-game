@@ -1,5 +1,5 @@
 /**
- * Brax Mobile UI - Colour Palette
+ * ReCheckers Mobile UI - Colour Palette
  *
  * The two player colours sit next to each other all over the board, so they are
  * chosen against each other rather than picked individually:

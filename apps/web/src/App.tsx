@@ -1,13 +1,13 @@
 /**
- * Brax Board Game - Main Application
- * Integrates the pure TypeScript Brax Rules Engine with an authentic, responsive interface.
+ * ReCheckers Board Game - Main Application
+ * Integrates the pure TypeScript ReCheckers Rules Engine with an authentic, responsive interface.
  */
 
 import React, { useState } from 'react';
-import type { AIDifficulty, MoveAction, PlayerColor } from '@brax/engine/view';
-import { AI_DIFFICULTIES, DIFFICULTY_PROFILES } from '@brax/engine/view';
-import type { GameScenario } from '@brax/engine';
-import { useBraxSession } from './hooks/useBraxSession.ts';
+import type { AIDifficulty, MoveAction, PlayerColor } from '@re-checkers/engine/view';
+import { AI_DIFFICULTIES, DIFFICULTY_PROFILES } from '@re-checkers/engine/view';
+import type { GameScenario } from '@re-checkers/engine';
+import { useReCheckersSession } from './hooks/useReCheckersSession.ts';
 import { BoardView } from './components/BoardView.tsx';
 import { TestRunnerView } from './components/TestRunnerView.tsx';
 import { ScenariosPanel } from './components/ScenariosPanel.tsx';
@@ -32,7 +32,7 @@ import {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'board' | 'mobile' | 'scenarios' | 'tests' | 'architecture'>('mobile');
-  const [callBraxNextMove, setCallBraxNextMove] = useState<boolean>(true);
+  const [callReCheckersNextMove, setCallReCheckersNextMove] = useState<boolean>(true);
   const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
 
   // The rules live behind the engine client, so the board reads a session
@@ -57,7 +57,7 @@ export default function App() {
     setStatusMessage,
     setBotConfig,
     resetExperience,
-  } = useBraxSession('two_player');
+  } = useReCheckersSession('two_player');
 
   // The bot's timing, colour and difficulty are the session's business - it is
   // the thing that knows whose turn it is. This screen only offers the controls.
@@ -70,7 +70,7 @@ export default function App() {
   };
 
   const executeMove = (move: MoveAction) => {
-    void applyMove(move, callBraxNextMove);
+    void applyMove(move, callReCheckersNextMove);
   };
 
   const resetGame = (modeId: string = 'two_player') => {
@@ -112,7 +112,7 @@ export default function App() {
   const isRedTurn = state.turn === 'RED';
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans" id="brax-app">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans" id="re-checkers-app">
       {/* Top Navigation Bar */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -123,14 +123,14 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-slate-900 text-base sm:text-lg leading-tight">
-                  Brax Rules Engine
+                  ReCheckers Rules Engine
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-slate-100 text-slate-600 border border-slate-200 uppercase">
                   F.B. Denham (1889)
                 </span>
               </div>
               <p className="text-xs text-slate-500 hidden sm:block">
-                Bezstanowy silnik reguł w TypeScript • Geometria 9x9 • Maszyna stanów Brax
+                Bezstanowy silnik reguł w TypeScript • Geometria 9x9 • Maszyna stanów ReCheckers
               </p>
             </div>
           </div>
@@ -237,40 +237,40 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Brax Option Toggle */}
+                {/* ReCheckers Option Toggle */}
                 <div className="flex items-center gap-2">
                   <label
-                    htmlFor="toggle-call-brax"
+                    htmlFor="toggle-call-reCheckers"
                     className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 select-none"
-                    title="Jeśli zaznaczone i ruch stworzy zagrożenie, silnik automatycznie zadeklaruje Brax!"
+                    title="Jeśli zaznaczone i ruch stworzy zagrożenie, silnik automatycznie zadeklaruje Re-Checkers!"
                   >
                     <input
-                      id="toggle-call-brax"
+                      id="toggle-call-reCheckers"
                       type="checkbox"
-                      checked={callBraxNextMove}
-                      onChange={(e) => setCallBraxNextMove(e.target.checked)}
+                      checked={callReCheckersNextMove}
+                      onChange={(e) => setCallReCheckersNextMove(e.target.checked)}
                       disabled={isEndgame}
                       className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
                     />
-                    <span>Wołaj „Brax!”</span>
+                    <span>Wołaj „Re-Checkers!”</span>
                   </label>
                 </div>
               </div>
 
-              {/* Brax Enforcement Alert Banner */}
-              {state.activeBrax && (
+              {/* ReCheckers Enforcement Alert Banner */}
+              {state.activeReCheckers && (
                 <div
-                  id="brax-alert-banner"
+                  id="re-checkers-alert-banner"
                   className="w-full max-w-[540px] mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3"
                 >
                   <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-900 leading-relaxed">
                     <span className="font-bold block">
-                      WYMUSZENIE BRAX! Gracz {state.activeBrax.callerColor} zawołał „Brax!”
+                      WYMUSZENIE RE-CHECKERS! Gracz {state.activeReCheckers.callerColor} zawołał „Re-Checkers!”
                     </span>
-                    Gracz {state.activeBrax.victimColor} MUSI w tym ruchu ruszyć się jednym z
+                    Gracz {state.activeReCheckers.victimColor} MUSI w tym ruchu ruszyć się jednym z
                     zagrożonych pionków:{' '}
-                    <strong>{state.activeBrax.threatenedPieceIds.join(', ')}</strong>. Ruchy innymi
+                    <strong>{state.activeReCheckers.threatenedPieceIds.join(', ')}</strong>. Ruchy innymi
                     pionkami są zablokowane.
                   </div>
                 </div>
@@ -282,7 +282,7 @@ export default function App() {
                   <Flag className="w-4 h-4 text-slate-500 shrink-0" />
                   <span>
                     <strong>Końcówka gry (stan 2:1 lub 1:1):</strong> Zgodnie z oficjalnymi regułami
-                    Denhama, prawo do wołania Brax wygasło bezpowrotnie.
+                    Denhama, prawo do wołania ReCheckers wygasło bezpowrotnie.
                   </span>
                 </div>
               )}
@@ -623,7 +623,7 @@ export default function App() {
               <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs" id="rules-card">
                 <div className="flex items-center gap-2 mb-2 text-slate-800 font-bold text-sm">
                   <BookOpen className="w-4 h-4 text-slate-600" />
-                  <span>Ściągawka Reguł Gry Brax</span>
+                  <span>Ściągawka Reguł Gry ReCheckers</span>
                 </div>
                 <ul className="text-xs text-slate-600 space-y-1.5 list-disc list-inside leading-relaxed">
                   <li>
@@ -636,10 +636,10 @@ export default function App() {
                     <strong>Brak skakania:</strong> Węzeł pośredni P1 MUSI być pusty (nie można przeskoczyć pionka).
                   </li>
                   <li>
-                    <strong>Wołanie Brax:</strong> Po ruchu stwarzającym zagrożenie zmusza przeciwnika do ruszenia zagrożonym pionkiem.
+                    <strong>Wołanie ReCheckers:</strong> Po ruchu stwarzającym zagrożenie zmusza przeciwnika do ruszenia zagrożonym pionkiem.
                   </li>
                   <li>
-                    <strong>Końcówka 2:1:</strong> Prawo do Brax wygasa bezpowrotnie.
+                    <strong>Końcówka 2:1:</strong> Prawo do ReCheckers wygasa bezpowrotnie.
                   </li>
                 </ul>
               </div>

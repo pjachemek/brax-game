@@ -1,5 +1,5 @@
 /**
- * Brax Rules Engine - AI domain types.
+ * ReCheckers Rules Engine - AI domain types.
  *
  * These are part of the engine's public contract: the session layer, both
  * transports and every front end name difficulties and bot configuration with
@@ -33,8 +33,8 @@ export type MoveHistoryItem = MoveHistoryEntry;
 /**
  * A candidate move as the search sees it: a concrete path plus what it takes.
  *
- * The search deliberately does not carry `callBrax`. Declaring is a decision
- * about the position *after* the move is fixed (see `shouldDeclareBrax`), and
+ * The search deliberately does not carry `callReCheckers`. Declaring is a decision
+ * about the position *after* the move is fixed (see `shouldDeclareReCheckers`), and
  * folding it into the move list would double the branching factor for a choice
  * that never changes where a piece lands.
  */
@@ -48,7 +48,7 @@ export interface BotMove {
 }
 
 /**
- * Rollouts are capped rather than played to the end. Brax positions cycle
+ * Rollouts are capped rather than played to the end. ReCheckers positions cycle
  * freely — two pieces can shuffle along the same pair of nodes forever — so an
  * uncapped playout is not merely slow, it does not terminate.
  */

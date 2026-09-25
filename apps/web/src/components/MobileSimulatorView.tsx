@@ -1,11 +1,11 @@
 /**
- * Brax Mobile UI Simulator & Code Inspector
+ * ReCheckers Mobile UI Simulator & Code Inspector
  * Presents an interactive mobile phone container running the React Native / Zustand UI,
  * side-by-side with an architecture breakdown and file code inspector.
  */
 
 import React, { useState } from 'react';
-import { MobileGameScreen, useGameStore } from '@brax/mobile-ui';
+import { MobileGameScreen, useGameStore } from '@re-checkers/mobile-ui';
 import {
   Smartphone,
   Code2,
@@ -24,11 +24,11 @@ const CODE_SNIPPETS: Record<string, { title: string; filename: string; language:
     title: 'Zustand Store (useGameStore.ts)',
     filename: 'packages/mobile-ui/src/store/useGameStore.ts',
     language: 'typescript',
-    desc: 'Trzyma stan interakcji (zaznaczenie, faza tury) i projekcję sesji z silnika. Nie zawiera reguł: legalność ruchów, prawo do Brax, zbicia, wynik i cofanie przychodzą z BraxEngineClient.',
+    desc: 'Trzyma stan interakcji (zaznaczenie, faza tury) i projekcję sesji z silnika. Nie zawiera reguł: legalność ruchów, prawo do ReCheckers, zbicia, wynik i cofanie przychodzą z ReCheckersEngineClient.',
     code: `import { create } from 'zustand';
-import { isEngineError } from '@brax/engine';
-import { areCoordsEqual, findPieceCoord } from '@brax/engine/view';
-import { getEngineClient } from '@brax/mobile-ui/engine';
+import { isEngineError } from '@re-checkers/engine';
+import { areCoordsEqual, findPieceCoord } from '@re-checkers/engine/view';
+import { getEngineClient } from '@re-checkers/mobile-ui/engine';
 
 // Silnik może być lokalny albo hostowany — store tego nie wie.
 const client = () => getEngineClient();
@@ -52,11 +52,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   selectPiece: async (pieceId: string) => {
     const { gameId, gameState } = get();
-    // Wymuszenie Brax odczytujemy ze stanu, który zwrócił silnik.
-    const activeBrax = gameState.activeBrax;
-    if (activeBrax && activeBrax.victimColor === gameState.turn) {
-      if (!activeBrax.threatenedPieceIds.includes(pieceId)) {
-        set({ errorMessage: 'You are Braxed! Move a threatened piece' });
+    // Wymuszenie Re-Checkers odczytujemy ze stanu, który zwrócił silnik.
+    const activeReCheckers = gameState.activeReCheckers;
+    if (activeReCheckers && activeReCheckers.victimColor === gameState.turn) {
+      if (!activeReCheckers.threatenedPieceIds.includes(pieceId)) {
+        set({ errorMessage: 'You are Re-Checkered! Move a threatened piece' });
         return;
       }
     }
@@ -66,18 +66,18 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   selectDestination: async (targetCoord: NodeCoord) => {
     const { gameId, selectedPieceId, revision } = get();
-    // O prawo do Brax pyta się silnik — to reguła, nie heurystyka UI.
-    const { moves, canCallBrax } = await client.getMoveOptions(gameId, selectedPieceId, targetCoord);
+    // O prawo do ReCheckers pyta się silnik — to reguła, nie heurystyka UI.
+    const { moves, canCallReCheckers } = await client.getMoveOptions(gameId, selectedPieceId, targetCoord);
     if (moves.length === 0) return;
 
-    if (canCallBrax) {
-      set({ pendingMove: moves[0], turnPhase: 'PENDING_BRAX_CHOICE' });
+    if (canCallReCheckers) {
+      set({ pendingMove: moves[0], turnPhase: 'PENDING_RE_CHECKERS_CHOICE' });
       return;
     }
 
     const outcome = await client.applyMove(
       gameId,
-      { ...moves[0], callBrax: false },
+      { ...moves[0], callReCheckers: false },
       { expectedRevision: revision }   // odrzuci ruch, jeśli partia poszła dalej
     );
     set({ gameState: outcome.snapshot.state, revision: outcome.snapshot.revision });
@@ -85,8 +85,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 }));`,
   },
   board: {
-    title: 'Responsive Board (BraxBoard.tsx)',
-    filename: 'packages/mobile-ui/src/components/BraxBoard.tsx',
+    title: 'Responsive Board (ReCheckersBoard.tsx)',
+    filename: 'packages/mobile-ui/src/components/ReCheckersBoard.tsx',
     language: 'tsx',
     desc: 'Renderowanie siatki 9x9 w react-native-svg, krawędzi ortogonalnych (RED/BLUE), etykiet startowych 1..7 oraz 81 punktów dotykowych. Rozmiar planszy pochodzi z pomiaru kontenera (onLayout), nie z szerokości okna.',
     code: `import React, { useMemo } from 'react';
@@ -94,9 +94,9 @@ import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
 import { useGameStore } from '../store/useGameStore.ts';
 import { PieceRenderer } from './PieceRenderer.tsx';
-import { CANONICAL_BRAX_BOARD } from '@brax/engine/view';
+import { CANONICAL_RE_CHECKERS_BOARD } from '@re-checkers/engine/view';
 
-export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
+export const ReCheckersBoard: React.FC<{ size?: number }> = ({ size }) => {
   const windowDims = useWindowDimensions();
   // \`size\` is the width measured by the parent's onLayout; the window is only a
   // fallback, so the board fits its container instead of overflowing it.
@@ -106,7 +106,7 @@ export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
   const pieceRadius = Math.max(10, cellSize * 0.38);
 
   const { gameState, selectedPieceId, validMoves, selectPiece, selectDestination } = useGameStore();
-  const allEdges = useMemo(() => CANONICAL_BRAX_BOARD.getAllEdges(), []);
+  const allEdges = useMemo(() => CANONICAL_RE_CHECKERS_BOARD.getAllEdges(), []);
 
   return (
     <View style={{ width: boardSize, height: boardSize }}>
@@ -140,14 +140,14 @@ export const BraxBoard: React.FC<{ size?: number }> = ({ size }) => {
     desc: 'Renderuje pionki (okrąg RED/BLUE, wzór PLAIN vs MARKED, obwódki zaznaczenia i ostrzeżenia o zagrożeniu).',
     code: `import React from 'react';
 import { G, Circle, Text as SvgText, Polygon } from 'react-native-svg';
-import { Piece } from '@brax/engine/view';
+import { Piece } from '@re-checkers/engine/view';
 
 export const PieceRenderer: React.FC<PieceRendererProps> = ({
-  piece, cx, cy, radius, isSelected, isThreatened, isCaptureTarget, isBraxRestricted, onPress
+  piece, cx, cy, radius, isSelected, isThreatened, isCaptureTarget, isReCheckersRestricted, onPress
 }) => {
   const isRed = piece.color === 'RED';
   return (
-    <G x={cx} y={cy} opacity={isBraxRestricted ? 0.45 : 1} onPress={onPress}>
+    <G x={cx} y={cy} opacity={isReCheckersRestricted ? 0.45 : 1} onPress={onPress}>
       {isThreatened && <Circle r={radius * 1.35} stroke="#F59E0B" strokeWidth={2.5} strokeDasharray="4,3" fill="none" />}
       {isSelected && <Circle r={radius * 1.25} stroke="#10B981" strokeWidth={3} fill="none" />}
       <Circle r={radius} fill={isRed ? '#DC2626' : '#2563EB'} stroke={isRed ? '#991B1B' : '#1E40AF'} strokeWidth={1.5} />
@@ -161,29 +161,29 @@ export const PieceRenderer: React.FC<PieceRendererProps> = ({
 };`,
   },
   modal: {
-    title: 'Brax Choice Modal (BraxModal.tsx)',
-    filename: 'packages/mobile-ui/src/components/BraxModal.tsx',
+    title: 'ReCheckers Choice Modal (ReCheckersModal.tsx)',
+    filename: 'packages/mobile-ui/src/components/ReCheckersModal.tsx',
     language: 'tsx',
-    desc: 'Wstrzymuje zakończenie tury, gdy ruch stwarza bezpośrednie zagrożenie i umożliwia wybór: "Call Brax!" lub "Zwykły ruch".',
+    desc: 'Wstrzymuje zakończenie tury, gdy ruch stwarza bezpośrednie zagrożenie i umożliwia wybór: "Call Re-Checkers!" lub "Zwykły ruch".',
     code: `import React from 'react';
 import { Modal, View, Text, TouchableOpacity } from 'react-native';
 import { useGameStore } from '../store/useGameStore.ts';
 
-export const BraxModal: React.FC = () => {
-  const { turnPhase, confirmBraxChoice, cancelPendingMove } = useGameStore();
-  if (turnPhase !== 'PENDING_BRAX_CHOICE') return null;
+export const ReCheckersModal: React.FC = () => {
+  const { turnPhase, confirmReCheckersChoice, cancelPendingMove } = useGameStore();
+  if (turnPhase !== 'PENDING_RE_CHECKERS_CHOICE') return null;
 
   return (
     <Modal transparent visible animationType="fade">
       <View style={styles.overlay}>
         <View style={styles.card}>
-          <Text style={styles.title}>OGŁOŚ BRAX!</Text>
-          <Text>Twój ruch stwarza bezpośrednie zagrożenie zbicia. Czy chcesz ogłosić Brax?</Text>
-          <TouchableOpacity onPress={() => confirmBraxChoice(true)}>
-            <Text>⚔️ Ogłoś Brax! (Call Brax)</Text>
+          <Text style={styles.title}>OGŁOŚ RE-CHECKERS!</Text>
+          <Text>Twój ruch stwarza bezpośrednie zagrożenie zbicia. Czy chcesz ogłosić ReCheckers?</Text>
+          <TouchableOpacity onPress={() => confirmReCheckersChoice(true)}>
+            <Text>⚔️ Ogłoś Re-Checkers! (Call Re-Checkers)</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => confirmBraxChoice(false)}>
-            <Text>Zwykły ruch (Bez Brax)</Text>
+          <TouchableOpacity onPress={() => confirmReCheckersChoice(false)}>
+            <Text>Zwykły ruch (Bez ReCheckers)</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -222,12 +222,12 @@ export const MobileSimulatorView: React.FC = () => {
               </span>
             </div>
             <h2 className="text-2xl font-bold text-slate-100">
-              Mobilna Warstwa UI Gry Brax
+              Mobilna Warstwa UI Gry ReCheckers
             </h2>
             <p className="text-sm text-slate-300 max-w-2xl mt-1">
               Kompletny zestaw natywnych komponentów mobilnych zintegrowanych z bezstanowym
               silnikiem reguł. Zawiera responsywną planszę 9x9, store Zustand, fazę decyzyjną
-              &quot;Braxing&quot; oraz mechanizm wymuszenia ruchu dla zagrożonych pionków.
+              &quot;Re-Checkers&quot; oraz mechanizm wymuszenia ruchu dla zagrożonych pionków.
             </p>
           </div>
 
@@ -318,9 +318,9 @@ export const MobileSimulatorView: React.FC = () => {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
                 <div>
-                  <span className="font-bold text-slate-800">Faza &quot;Braxing&quot;</span>
+                  <span className="font-bold text-slate-800">Faza &quot;Re-Checkers&quot;</span>
                   <p className="text-slate-500 text-[11px] mt-0.5">
-                    Gdy ruch stwarza zagrożenie, UI wstrzymuje zakończenie tury i wyświetla modal wyboru: &quot;Call Brax!&quot; vs &quot;Zwykły ruch&quot;.
+                    Gdy ruch stwarza zagrożenie, UI wstrzymuje zakończenie tury i wyświetla modal wyboru: &quot;Call Re-Checkers!&quot; vs &quot;Zwykły ruch&quot;.
                   </p>
                 </div>
               </div>
@@ -328,9 +328,9 @@ export const MobileSimulatorView: React.FC = () => {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
                 <div>
-                  <span className="font-bold text-slate-800">Wymuszenie Brax (Braxed)</span>
+                  <span className="font-bold text-slate-800">Wymuszenie Re-Checkers (Re-Checkered)</span>
                   <p className="text-slate-500 text-[11px] mt-0.5">
-                    Aktywne ograniczenie Brax blokuje wybór niezagrożonych pionków z komunikatem &quot;You are Braxed!&quot;.
+                    Aktywne ograniczenie Re-Checkers blokuje wybór niezagrożonych pionków z komunikatem &quot;You are Re-Checkered!&quot;.
                   </p>
                 </div>
               </div>
@@ -363,7 +363,7 @@ export const MobileSimulatorView: React.FC = () => {
                   }`}
                 >
                   <Code2 className="w-3.5 h-3.5" />
-                  BraxBoard.tsx
+                  ReCheckersBoard.tsx
                 </button>
 
                 <button
@@ -387,7 +387,7 @@ export const MobileSimulatorView: React.FC = () => {
                   }`}
                 >
                   <Shield className="w-3.5 h-3.5" />
-                  BraxModal.tsx
+                  ReCheckersModal.tsx
                 </button>
               </div>
 

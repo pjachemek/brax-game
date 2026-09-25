@@ -1,5 +1,5 @@
 /**
- * Brax Mobile UI - Lightweight animation hooks (React Native compatible)
+ * ReCheckers Mobile UI - Lightweight animation hooks (React Native compatible)
  *
  * Both hooks drive their own requestAnimationFrame loop and are meant to be used
  * by the smallest component that needs them, so a running animation re-renders a

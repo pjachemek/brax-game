@@ -1,4 +1,4 @@
-# Deploying Brax
+# Deploying Re-Checkers
 
 Three units, shipped independently.
 
@@ -21,9 +21,9 @@ The build context is the **repo root**, because the service imports
 `packages/engine` as a sibling:
 
 ```bash
-docker build -f services/engine-api/Dockerfile -t brax-engine:dev .
-docker run --rm -p 4000:4000 brax-engine:dev
-curl localhost:4000/health          # {"status":"ok","service":"brax-engine","modes":2}
+docker build -f services/engine-api/Dockerfile -t re-checkers-engine:dev .
+docker run --rm -p 4000:4000 re-checkers-engine:dev
+curl localhost:4000/health          # {"status":"ok","service":"re-checkers-engine","modes":2}
 ```
 
 The builder bundles the service and the slice of `packages/engine` it imports
@@ -39,24 +39,24 @@ change can neither break it nor invalidate its cache.
 
 ```bash
 kubectl apply -f services/engine-api/deploy/
-kubectl -n brax rollout status deploy/brax-engine
-kubectl -n brax port-forward svc/brax-engine 4000:80   # smoke test
+kubectl -n reCheckers rollout status deploy/re-checkers-engine
+kubectl -n reCheckers port-forward svc/re-checkers-engine 4000:80   # smoke test
 ```
 
 Set before the first apply:
 
 | File | Change |
 | ---- | ------ |
-| `deployment.yaml` | `image:` → your registry path and tag (`ghcr.io/OWNER/brax-engine:...`) |
+| `deployment.yaml` | `image:` → your registry path and tag (`ghcr.io/OWNER/re-checkers-engine:...`) |
 | `configmap.yaml` | `ALLOWED_ORIGINS` → the web origins that may call it |
-| `ingress.yaml` | `engine.brax.example` → your host, in both the `tls` and `rules` blocks |
+| `ingress.yaml` | `engine.recheckers.example` → your host, in both the `tls` and `rules` blocks |
 
 If the image is private, add a pull secret:
 
 ```bash
-kubectl -n brax create secret docker-registry ghcr \
+kubectl -n reCheckers create secret docker-registry ghcr \
   --docker-server=ghcr.io --docker-username=USER --docker-password=TOKEN
-kubectl -n brax patch serviceaccount default \
+kubectl -n reCheckers patch serviceaccount default \
   -p '{"imagePullSecrets":[{"name":"ghcr"}]}'
 ```
 
@@ -66,8 +66,8 @@ Port 4000 appears in only one of the four manifests, which makes the path hard
 to follow. Each hop resolves a *name* declared by the next file down:
 
 ```
-https://engine.brax.example
-  ingress.yaml    backend.service.name: brax-engine
+https://engine.recheckers.example
+  ingress.yaml    backend.service.name: re-checkers-engine
                   backend.service.port.name: http   -> the Service port called "http"
   service.yaml    - name: http                      <- that one
                     port: 80                            Traefik connects here
@@ -89,10 +89,10 @@ and both probes follow automatically.
 If a request 404s or 502s, work down that list:
 
 ```bash
-kubectl -n brax get ingress brax-engine          # is there an address?
-kubectl -n brax describe ingress brax-engine     # does the backend resolve?
-kubectl -n brax get endpoints brax-engine        # empty = selector matches no ready pod
-kubectl -n brax port-forward svc/brax-engine 4000:80 && curl localhost:4000/health
+kubectl -n reCheckers get ingress re-checkers-engine          # is there an address?
+kubectl -n reCheckers describe ingress re-checkers-engine     # does the backend resolve?
+kubectl -n reCheckers get endpoints re-checkers-engine        # empty = selector matches no ready pod
+kubectl -n reCheckers port-forward svc/re-checkers-engine 4000:80 && curl localhost:4000/health
 ```
 
 Empty `endpoints` is the usual one, and it means either the label selector
@@ -123,7 +123,7 @@ beyond a trusted network.
 
 ```bash
 git tag engine-v1.2.0 && git push origin engine-v1.2.0
-kubectl -n brax set image deploy/brax-engine engine=ghcr.io/OWNER/brax-engine:1.2.0
+kubectl -n reCheckers set image deploy/re-checkers-engine engine=ghcr.io/OWNER/re-checkers-engine:1.2.0
 ```
 
 Pull requests build the image to prove it still builds, but push nothing.
@@ -167,10 +167,10 @@ Then:
 
 ```bash
 npm run mobile:build                                    # preview, both platforms
-npm run build:ios --workspace @brax/mobile              # production ipa
-npm run build:android --workspace @brax/mobile          # production aab
-npm run submit:ios --workspace @brax/mobile             # -> App Store Connect
-npm run submit:android --workspace @brax/mobile         # -> Play internal track
+npm run build:ios --workspace @re-checkers/mobile              # production ipa
+npm run build:android --workspace @re-checkers/mobile          # production aab
+npm run submit:ios --workspace @re-checkers/mobile             # -> App Store Connect
+npm run submit:android --workspace @re-checkers/mobile         # -> Play internal track
 ```
 
 Before the first submission, in `apps/mobile`:
@@ -211,7 +211,7 @@ engine or runs one in-process:
 
 ```
 VITE_ENGINE_TRANSPORT=http
-VITE_ENGINE_URL=https://engine.brax.example
+VITE_ENGINE_URL=https://engine.recheckers.example
 ```
 
 With `http`, add the site's origin to `ALLOWED_ORIGINS` in the engine's

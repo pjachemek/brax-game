@@ -1,5 +1,5 @@
 /**
- * @brax/engine-client - Transport selection.
+ * @re-checkers/engine-client - Transport selection.
  *
  * The app imports `createEngineClient` and nothing else about how the rules are
  * executed. Flipping VITE_ENGINE_TRANSPORT from "local" to "http" moves the
@@ -8,13 +8,13 @@
 
 import { HttpEngineClient, type HttpEngineClientOptions } from './http-client.ts';
 import { LocalEngineClient } from './local-client.ts';
-import type { BraxEngineClient } from './types.ts';
+import type { ReCheckersEngineClient } from './types.ts';
 
 export type EngineClientConfig =
   | ({ transport: 'http' } & HttpEngineClientOptions)
   | { transport: 'local' };
 
-export function createEngineClient(config: EngineClientConfig): BraxEngineClient {
+export function createEngineClient(config: EngineClientConfig): ReCheckersEngineClient {
   if (config.transport === 'http') {
     const { transport: _transport, ...options } = config;
     return new HttpEngineClient(options);
@@ -23,6 +23,6 @@ export function createEngineClient(config: EngineClientConfig): BraxEngineClient
 }
 
 export { HttpEngineClient, LocalEngineClient };
-export type { BraxEngineClient, HttpEngineClientOptions };
+export type { ReCheckersEngineClient, HttpEngineClientOptions };
 export type { ApplyMoveRequestOptions } from './types.ts';
 export type { FetchLike } from './http-client.ts';

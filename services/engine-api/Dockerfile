@@ -1,4 +1,4 @@
-# Brax engine service image.
+# ReCheckers engine service image.
 #
 # Two stages. The builder bundles services/engine-api together with the slice of
 # packages/engine it imports into one ESM file, so the runtime image carries no
@@ -12,7 +12,7 @@
 # graphs, and a mobile-only change cannot invalidate its cache or break it.
 #
 # Build from the repo root:
-#   docker build -f services/engine-api/Dockerfile -t brax-engine:dev .
+#   docker build -f services/engine-api/Dockerfile -t re-checkers-engine:dev .
 
 # ---- build ----------------------------------------------------------------
 FROM node:22-alpine AS builder
@@ -23,14 +23,14 @@ RUN npm install --no-save --no-audit --no-fund esbuild@0.25.12
 COPY packages/engine/ packages/engine/
 COPY services/engine-api/ services/engine-api/
 
-# tsconfig paths are not consulted by esbuild, so @brax/engine is mapped here.
+# tsconfig paths are not consulted by esbuild, so @re-checkers/engine is mapped here.
 RUN npx esbuild services/engine-api/src/server.ts \
       --bundle \
       --platform=node \
       --target=node22 \
       --format=esm \
       --external:express \
-      --alias:@brax/engine=./packages/engine/src/index.ts \
+      --alias:@re-checkers/engine=./packages/engine/src/index.ts \
       --legal-comments=none \
       --outfile=dist/server.js
 

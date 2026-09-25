@@ -1,5 +1,5 @@
 /**
- * @brax/engine-client - In-process adapter.
+ * @re-checkers/engine-client - In-process adapter.
  *
  * Runs the real session manager inside the app. Keeps offline play working and
  * keeps tests free of a network, while going through the exact same async
@@ -23,11 +23,11 @@ import {
   type ThreatenedPieceInfo,
   type TurnContextResult,
   type ValidationResult,
-} from '@brax/engine';
+} from '@re-checkers/engine';
 
-import type { ApplyMoveRequestOptions, BraxEngineClient } from './types.ts';
+import type { ApplyMoveRequestOptions, ReCheckersEngineClient } from './types.ts';
 
-export class LocalEngineClient implements BraxEngineClient {
+export class LocalEngineClient implements ReCheckersEngineClient {
   public readonly transport = 'local' as const;
 
   private readonly manager: GameSessionManager;

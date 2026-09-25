@@ -1,10 +1,10 @@
 /**
- * Brax Mobile UI - Zustand Game Store
+ * ReCheckers Mobile UI - Zustand Game Store
  *
  * Holds the *interaction* state (selection, turn phase, feedback) and a
  * projection of a server-authoritative session. It owns no rules: legality,
- * Brax eligibility, capture resolution, victory and undo all come back from the
- * BraxEngineClient, which may be running in-process or in the hosted service.
+ * ReCheckers eligibility, capture resolution, victory and undo all come back from the
+ * ReCheckersEngineClient, which may be running in-process or in the hosted service.
  *
  * Consequences of that split, visible throughout this file:
  *  - every action is async and guarded by `isBusy` so a slow engine cannot be
@@ -15,8 +15,8 @@
  */
 
 import { create } from 'zustand';
-import type { MoveOptionsResult } from '@brax/engine';
-import { areCoordsEqual, findPieceCoord, isEngineError, withBotPacing } from '@brax/engine/view';
+import type { MoveOptionsResult } from '@re-checkers/engine';
+import { areCoordsEqual, findPieceCoord, isEngineError, withBotPacing } from '@re-checkers/engine/view';
 import type {
   BotPlayConfig,
   GameSnapshot,
@@ -24,7 +24,7 @@ import type {
   MoveAction,
   MoveOutcome,
   NodeCoord,
-} from '@brax/engine/view';
+} from '@re-checkers/engine/view';
 
 import { GameStoreState, TurnPhase } from '../types.ts';
 import { getEngineClient } from '../engine.ts';
@@ -169,8 +169,8 @@ export const useGameStore = create<GameStoreState>((set, get) => {
   /** Applies the outcome of a completed move, including its feedback message. */
   const applyOutcome = (outcome: MoveOutcome) => {
     let message: string | null = null;
-    if (outcome.braxCalled) {
-      message = `Brax ogłoszony! Przeciwnik musi ruszyć zagrożonym pionkiem (${outcome.enforcedPieceIds.join(
+    if (outcome.reCheckersCalled) {
+      message = `ReCheckers ogłoszony! Przeciwnik musi ruszyć zagrożonym pionkiem (${outcome.enforcedPieceIds.join(
         ', '
       )}).`;
     } else if (outcome.capturedPieceIds?.length > 1) {
@@ -189,7 +189,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
    *
    * The bot check belongs here rather than in each action: while the bot is on
    * the clock, *every* player-initiated action - selecting, dropping, answering
-   * a Brax prompt, undoing - is aimed at a position that is about to change,
+   * a ReCheckers prompt, undoing - is aimed at a position that is about to change,
    * and there is no such action that should be allowed through.
    */
   const requireGameId = (): string | null => {
@@ -336,14 +336,14 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         return;
       }
 
-      // Wymuszenie ruchu (Braxed): Check if current player is under Brax enforcement.
+      // Wymuszenie ruchu (Re-Checkered): Check if current player is under ReCheckers enforcement.
       // The enforcement lives in the state the engine returned, so this is a read,
       // not a second opinion about the rules.
-      const activeBrax = gameState.activeBrax;
-      if (activeBrax && activeBrax.victimColor === gameState.turn) {
-        if (!activeBrax.threatenedPieceIds.includes(pieceId)) {
+      const activeReCheckers = gameState.activeReCheckers;
+      if (activeReCheckers && activeReCheckers.victimColor === gameState.turn) {
+        if (!activeReCheckers.threatenedPieceIds.includes(pieceId)) {
           reject(pieceId, {
-            errorMessage: `You are Braxed! Move a threatened piece (${activeBrax.threatenedPieceIds.join(
+            errorMessage: `You are Re-Checkered! Move a threatened piece (${activeReCheckers.threatenedPieceIds.join(
               ', '
             )}).`,
             statusMessage: null,
@@ -420,14 +420,14 @@ export const useGameStore = create<GameStoreState>((set, get) => {
 
       const baseMove = options.moves[0];
 
-      // Faza "Braxing": the engine already decided whether this move may declare.
-      if (options.canCallBrax) {
+      // Faza "Re-Checkers": the engine already decided whether this move may declare.
+      if (options.canCallReCheckers) {
         set({
           isBusy: false,
           pendingMove: baseMove,
-          turnPhase: 'PENDING_BRAX_CHOICE',
+          turnPhase: 'PENDING_RE_CHECKERS_CHOICE',
           errorMessage: null,
-          statusMessage: 'Ruch stwarza bezpośrednie zagrożenie! Czy chcesz ogłosić Brax?',
+          statusMessage: 'Ruch stwarza bezpośrednie zagrożenie! Czy chcesz ogłosić ReCheckers?',
         });
         return;
       }
@@ -435,7 +435,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       try {
         const outcome = await client().applyMove(
           gameId,
-          { ...baseMove, callBrax: false },
+          { ...baseMove, callReCheckers: false },
           { expectedRevision: revision }
         );
         applyOutcome(outcome);
@@ -444,7 +444,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       }
     },
 
-    confirmBraxChoice: async (callBrax: boolean) => {
+    confirmReCheckersChoice: async (callReCheckers: boolean) => {
       const gameId = requireGameId();
       const { pendingMove, revision } = get();
       if (!gameId || !pendingMove) return;
@@ -454,16 +454,16 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       try {
         const outcome = await client().applyMove(
           gameId,
-          { ...pendingMove, callBrax },
+          { ...pendingMove, callReCheckers },
           { expectedRevision: revision }
         );
         applyOutcome(outcome);
         return;
       } catch (err) {
-        // A refused Brax declaration should not cost the player their move:
+        // A refused ReCheckers declaration should not cost the player their move:
         // fall back to the same move played plainly, if the engine allows it.
-        const braxRefused = isEngineError(err) && err.code === 'INVALID_MOVE' && callBrax;
-        if (!braxRefused) {
+        const reCheckersRefused = isEngineError(err) && err.code === 'INVALID_MOVE' && callReCheckers;
+        if (!reCheckersRefused) {
           await handleFailure(err, 'AWAITING_SELECTION');
           return;
         }
@@ -471,11 +471,11 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         try {
           const outcome = await client().applyMove(
             gameId,
-            { ...pendingMove, callBrax: false },
+            { ...pendingMove, callReCheckers: false },
             { expectedRevision: get().revision }
           );
           applySnapshot(outcome.snapshot, {
-            statusMessage: 'Wykonano zwykły ruch (Brax nie był dozwolony).',
+            statusMessage: 'Wykonano zwykły ruch (ReCheckers nie był dozwolony).',
           });
         } catch (fallbackErr) {
           await handleFailure(fallbackErr, 'AWAITING_SELECTION');
@@ -487,7 +487,7 @@ export const useGameStore = create<GameStoreState>((set, get) => {
       set({
         pendingMove: null,
         turnPhase: 'PIECE_SELECTED',
-        statusMessage: 'Anulowano wybór opcji Brax.',
+        statusMessage: 'Anulowano wybór opcji ReCheckers.',
       });
     },
 

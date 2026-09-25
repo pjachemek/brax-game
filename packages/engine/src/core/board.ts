@@ -1,5 +1,5 @@
 /**
- * Brax Rules Engine - Board Graph
+ * ReCheckers Rules Engine - Board Graph
  * Fast lookup for board topology, colored edges, and node adjacencies.
  */
 
@@ -7,7 +7,7 @@ import { NodeCoord, PlayerColor, Edge } from './types.ts';
 import {
   coordToKey,
   edgeKey,
-  generateCanonicalBraxEdges,
+  generateCanonicalReCheckersEdges,
   isValidCoord,
 } from './geometry.ts';
 
@@ -71,6 +71,6 @@ export class BoardGraph {
 }
 
 /**
- * Pre-instantiated standard Brax board graph with official alternating segments.
+ * Pre-instantiated standard ReCheckers board graph with official alternating segments.
  */
-export const CANONICAL_BRAX_BOARD = new BoardGraph(generateCanonicalBraxEdges());
+export const CANONICAL_RE_CHECKERS_BOARD = new BoardGraph(generateCanonicalReCheckersEdges());

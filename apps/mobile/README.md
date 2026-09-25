@@ -1,6 +1,6 @@
-# Brax — iOS / Android
+# Re-Checkers — iOS / Android
 
-An Expo app around `@brax/mobile-ui`, which is the same React Native view layer
+An Expo app around `@re-checkers/mobile-ui`, which is the same React Native view layer
 the web workbench renders in its simulator tab. This app contributes a native
 shell and one decision: where the rules engine is.
 

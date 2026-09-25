@@ -1,7 +1,7 @@
 /**
- * Brax Mobile UI - Brax Choice Action Modal Component (React Native)
- * Appears during TurnPhase.PENDING_BRAX_CHOICE when a move creates a direct threat.
- * Offers the player the tactical choice to declare "Call Brax!" or play a normal move.
+ * ReCheckers Mobile UI - ReCheckers Choice Action Modal Component (React Native)
+ * Appears during TurnPhase.PENDING_RE_CHECKERS_CHOICE when a move creates a direct threat.
+ * Offers the player the tactical choice to declare "Call Re-Checkers!" or play a normal move.
  */
 
 import React from 'react';
@@ -14,16 +14,16 @@ import {
 } from 'react-native';
 import { useGameStore } from '../store/useGameStore.ts';
 
-export const BraxModal: React.FC = () => {
+export const ReCheckersModal: React.FC = () => {
   const {
     turnPhase,
     gameState,
     pendingMove,
-    confirmBraxChoice,
+    confirmReCheckersChoice,
     cancelPendingMove,
   } = useGameStore();
 
-  const isVisible = turnPhase === 'PENDING_BRAX_CHOICE' && pendingMove !== null && gameState !== null;
+  const isVisible = turnPhase === 'PENDING_RE_CHECKERS_CHOICE' && pendingMove !== null && gameState !== null;
   const isRedTurn = gameState?.turn === 'RED';
   const playerColorName = isRedTurn ? 'Czerwony (RED)' : 'Niebieski (BLUE)';
 
@@ -44,18 +44,18 @@ export const BraxModal: React.FC = () => {
           </View>
 
           {/* Modal Title */}
-          <Text style={styles.title}>OGŁOŚ BRAX!</Text>
+          <Text style={styles.title}>OGŁOŚ RE-CHECKERS!</Text>
 
           {/* Description */}
           <Text style={styles.description}>
             Twój ruch stwarza bezpośrednie zagrożenie zbicia pionka przeciwnika.
-            Czy chcesz skorzystać z prawa do zawołania <Text style={styles.boldText}>Brax</Text>?
+            Czy chcesz skorzystać z prawa do zawołania <Text style={styles.boldText}>ReCheckers</Text>?
           </Text>
 
           {/* Tactical Explanation */}
           <View style={styles.infoBox}>
             <Text style={styles.infoText}>
-              • <Text style={styles.boldText}>Call Brax</Text>: Przeciwnik w swojej turze będzie{' '}
+              • <Text style={styles.boldText}>Call Re-Checkers</Text>: Przeciwnik w swojej turze będzie{' '}
               <Text style={styles.boldText}>zmuszony ruszyć wyłącznie zagrożony pionek</Text>.
             </Text>
             <Text style={[styles.infoText, { marginTop: 6 }]}>
@@ -65,22 +65,22 @@ export const BraxModal: React.FC = () => {
 
           {/* Action Buttons */}
           <View style={styles.buttonGroup}>
-            {/* Primary Action: Call Brax */}
+            {/* Primary Action: Call Re-Checkers */}
             <TouchableOpacity
-              style={[styles.btn, styles.btnBrax]}
+              style={[styles.btn, styles.btnReCheckers]}
               activeOpacity={0.8}
-              onPress={() => confirmBraxChoice(true)}
+              onPress={() => confirmReCheckersChoice(true)}
             >
-              <Text style={styles.btnBraxText}>⚔️ Ogłoś Brax! (Call Brax)</Text>
+              <Text style={styles.btnReCheckersText}>⚔️ Ogłoś Re-Checkers! (Call Re-Checkers)</Text>
             </TouchableOpacity>
 
             {/* Secondary Action: Normal Move */}
             <TouchableOpacity
               style={[styles.btn, styles.btnNormal]}
               activeOpacity={0.8}
-              onPress={() => confirmBraxChoice(false)}
+              onPress={() => confirmReCheckersChoice(false)}
             >
-              <Text style={styles.btnNormalText}>Zwykły ruch (Bez Brax)</Text>
+              <Text style={styles.btnNormalText}>Zwykły ruch (Bez ReCheckers)</Text>
             </TouchableOpacity>
 
             {/* Tertiary: Cancel */}
@@ -181,10 +181,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  btnBrax: {
+  btnReCheckers: {
     backgroundColor: '#0F172A',
   },
-  btnBraxText: {
+  btnReCheckersText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',

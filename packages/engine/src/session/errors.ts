@@ -1,5 +1,5 @@
 /**
- * Brax Engine - Transport-agnostic error taxonomy.
+ * ReCheckers Engine - Transport-agnostic error taxonomy.
  *
  * Both the in-process session manager and the HTTP service raise these, so a
  * client adapter can surface identical failures whether the engine runs locally

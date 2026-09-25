@@ -1,7 +1,7 @@
 /**
  * Transport parity tests.
  *
- * The whole point of BraxEngineClient is that the app cannot tell where the
+ * The whole point of ReCheckersEngineClient is that the app cannot tell where the
  * rules ran. These tests therefore run one suite twice: once against the
  * in-process engine, once against the real HTTP service over a real socket.
  * If the two ever diverge, moving the engine off-device becomes a behaviour
@@ -10,11 +10,11 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Server } from 'node:http';
-import { EngineError, isEngineError } from '@brax/engine';
+import { EngineError, isEngineError } from '@re-checkers/engine';
 import { createApp } from '../../../../services/engine-api/src/app.ts';
 import { HttpEngineClient } from '../http-client.ts';
 import { LocalEngineClient } from '../local-client.ts';
-import type { BraxEngineClient } from '../types.ts';
+import type { ReCheckersEngineClient } from '../types.ts';
 
 let server: Server;
 let httpClient: HttpEngineClient;
@@ -33,12 +33,12 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-const transports: Array<[string, () => BraxEngineClient]> = [
+const transports: Array<[string, () => ReCheckersEngineClient]> = [
   ['local', () => new LocalEngineClient()],
   ['http', () => httpClient],
 ];
 
-describe.each(transports)('BraxEngineClient over %s transport', (_name, makeClient) => {
+describe.each(transports)('ReCheckersEngineClient over %s transport', (_name, makeClient) => {
   it('reports itself healthy and lists the registered modes', async () => {
     const client = makeClient();
     expect(await client.healthCheck()).toBe(true);
@@ -65,7 +65,7 @@ describe.each(transports)('BraxEngineClient over %s transport', (_name, makeClie
     const moves = await client.getValidMoves(gameId, 'R1');
     expect(moves.length).toBeGreaterThan(0);
 
-    const outcome = await client.applyMove(gameId, { ...moves[0], callBrax: false });
+    const outcome = await client.applyMove(gameId, { ...moves[0], callReCheckers: false });
     expect(outcome.snapshot.revision).toBe(1);
     expect(outcome.snapshot.canUndo).toBe(true);
     expect(outcome.snapshot.state.turn).toBe('BLUE');
@@ -110,19 +110,19 @@ describe.each(transports)('BraxEngineClient over %s transport', (_name, makeClie
     );
   });
 
-  it('answers the Brax question for a destination', async () => {
+  it('answers the ReCheckers question for a destination', async () => {
     const client = makeClient();
     const { gameId } = await client.createGame({ modeId: 'two_player' });
 
     const moves = await client.getValidMoves(gameId, 'R1');
     const options = await client.getMoveOptions(gameId, 'R1', moves[0].to);
     expect(options.moves.length).toBeGreaterThan(0);
-    expect(typeof options.canCallBrax).toBe('boolean');
+    expect(typeof options.canCallReCheckers).toBe('boolean');
 
     // A node the piece cannot reach yields no options rather than an error.
     const none = await client.getMoveOptions(gameId, 'R1', { x: 8, y: 8 });
     expect(none.moves).toEqual([]);
-    expect(none.canCallBrax).toBe(false);
+    expect(none.canCallReCheckers).toBe(false);
   });
 
   it('returns turn context, threats and endgame status together', async () => {

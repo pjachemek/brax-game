@@ -1,5 +1,5 @@
 /**
- * Brax Rules Engine - Geometry & Board Topology
+ * ReCheckers Rules Engine - Geometry & Board Topology
  * Coordinates, edge maps, and orthogonal graph navigation.
  */
 
@@ -74,9 +74,9 @@ export function edgeKey(a: NodeCoord, b: NodeCoord): string {
 }
 
 /**
- * Canonical Brax color assignment for orthogonal segments.
+ * Canonical ReCheckers color assignment for orthogonal segments.
  *
- * Transcribed from the official board artwork ("Brax board -vI.svg"), which draws
+ * Transcribed from the official board artwork ("ReCheckers board -vI.svg"), which draws
  * the colors as two interlocking families:
  *
  *  - Around every odd/odd intersection, a BLUE elbow (up + right) and a RED elbow
@@ -130,9 +130,9 @@ export function getCanonicalEdgeColor(from: NodeCoord, to: NodeCoord): PlayerCol
 }
 
 /**
- * Generates all 144 canonical edges for the official 9x9 Brax board.
+ * Generates all 144 canonical edges for the official 9x9 ReCheckers board.
  */
-export function generateCanonicalBraxEdges(): Edge[] {
+export function generateCanonicalReCheckersEdges(): Edge[] {
   const edges: Edge[] = [];
   const visited = new Set<string>();
 

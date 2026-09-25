@@ -1,5 +1,5 @@
 /**
- * Brax Engine - Session domain types.
+ * ReCheckers Engine - Session domain types.
  *
  * A session is the server-authoritative unit of play: it owns the canonical
  * GameState plus everything the rules engine itself is too pure to remember
@@ -59,9 +59,9 @@ export interface MoveOutcome {
   capturedPieceId: string | null;
   /** Every piece captured by the move, in travel order (a distance 2 move can take two). */
   capturedPieceIds: string[];
-  /** True when the applied move declared Brax and enforcement is now active. */
-  braxCalled: boolean;
-  /** Pieces the opponent is now forced to move, when Brax is active. */
+  /** True when the applied move declared ReCheckers and enforcement is now active. */
+  reCheckersCalled: boolean;
+  /** Pieces the opponent is now forced to move, when ReCheckers is active. */
   enforcedPieceIds: string[];
   move: MoveAction;
 }

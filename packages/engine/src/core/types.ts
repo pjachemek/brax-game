@@ -1,5 +1,5 @@
 /**
- * Brax Rules Engine - Core Domain Types
+ * ReCheckers Rules Engine - Core Domain Types
  * Independent of any UI framework (pure TypeScript).
  */
 
@@ -39,9 +39,9 @@ export interface MoveAction {
    */
   mid?: NodeCoord;
   /**
-   * Flag indicating whether the player declares "Brax" (Jinx) upon completing this move.
+   * Flag indicating whether the player declares "ReCheckers" (Jinx) upon completing this move.
    */
-  callBrax?: boolean;
+  callReCheckers?: boolean;
 }
 
 export interface ValidationResult {
@@ -61,7 +61,7 @@ export interface ThreatenedPieceInfo {
   attackPath: MovePath;
 }
 
-export interface BraxEnforcement {
+export interface ReCheckersEnforcement {
   callerColor: PlayerColor;
   victimColor: PlayerColor;
   threatenedPieceIds: string[];
@@ -84,7 +84,7 @@ export interface GameResult {
 export interface PlayerTurnContext {
   activePlayer: PlayerColor;
   turnNumber: number;
-  braxCallable: boolean;
+  reCheckersCallable: boolean;
   threatenedPiecesCount: number;
   mustMovePieceIds?: string[];
 }
@@ -104,7 +104,7 @@ export interface MoveHistoryEntry {
    * two: one on the node it passed over and one on the node it landed on.
    */
   capturedPieces?: Piece[];
-  calledBrax: boolean;
+  calledReCheckers: boolean;
   algebraic: string;
   timestamp: number;
 }
@@ -120,12 +120,12 @@ export interface GameState {
     RED: Piece[];
     BLUE: Piece[];
   };
-  activeBrax: BraxEnforcement | null;
+  activeReCheckers: ReCheckersEnforcement | null;
   /**
-   * Turn number when each player last called Brax.
-   * Player cannot call Brax multiple times without making their own move.
+   * Turn number when each player last called ReCheckers.
+   * Player cannot call ReCheckers multiple times without making their own move.
    */
-  lastBraxCallTurn: Record<PlayerColor, number | null>;
+  lastReCheckersCallTurn: Record<PlayerColor, number | null>;
   history: MoveHistoryEntry[];
   result: GameResult | null;
   gameModeId: string;
@@ -135,7 +135,7 @@ export interface GameState {
   endgame1v1HalfMovesWithoutCapture: number;
 }
 
-export interface BraxGameMode {
+export interface ReCheckersGameMode {
   id: string; // 'two_player' | 'three_player' | 'four_player' | 'fox_and_geese'
   name: string;
   description: string;

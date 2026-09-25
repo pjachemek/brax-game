@@ -1,5 +1,5 @@
 /**
- * Brax Rules Engine - AI entry point.
+ * ReCheckers Rules Engine - AI entry point.
  *
  * The bot outgrew a single file when it gained a search tree and a persistent
  * memory, so it now lives in `core/ai/`. This module stays as its front door:

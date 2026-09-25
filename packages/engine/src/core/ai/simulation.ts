@@ -1,17 +1,17 @@
 /**
- * Brax AI - Fast move generation and state transition for search.
+ * ReCheckers AI - Fast move generation and state transition for search.
  *
  * The rulebook's own `getValidMoves` / `applyMove` are the authority, but they
  * are built for correctness at a UI's pace: each recomputes the whole threat
  * map (and `applyMove` additionally probes every piece for stalemate) so that a
- * single call can answer "may I declare Brax here?" and "is the game over?".
+ * single call can answer "may I declare ReCheckers here?" and "is the game over?".
  * A Master search runs thousands of positions per move, so this module answers
  * the two questions search actually asks — "where may this piece go?" and
  * "what does the board look like afterwards?" — straight off the board graph.
  *
  * It is not a second rulebook. Legality still comes from
  * `getRawLegalPathsForPiece`, capture resolution from `getCapturesAlongPath`,
- * and Brax enforcement is read off `state.activeBrax` exactly as the mode does.
+ * and ReCheckers enforcement is read off `state.activeReCheckers` exactly as the mode does.
  * What is left out is only what search does not need: threat maps, history
  * entries, algebraic notation and per-ply stalemate scans. The move the search
  * finally returns is handed back to the real engine, which validates it again.
@@ -19,7 +19,7 @@
 
 import type { GameState, MoveAction, NodeCoord, Piece, PlayerColor } from '../types.ts';
 import { coordToKey } from '../geometry.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from '../board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from '../board.ts';
 import { getCapturesAlongPath, getRawLegalPathsForPiece } from '../movement.ts';
 import type { BotMove } from './types.ts';
 
@@ -29,28 +29,28 @@ export function moveKey(move: BotMove | MoveAction): string {
   return `${move.pieceId}>${move.to.x},${move.to.y}${mid}`;
 }
 
-export function toMoveAction(move: BotMove, callBrax = false): MoveAction {
-  return { pieceId: move.pieceId, to: move.to, mid: move.mid, callBrax };
+export function toMoveAction(move: BotMove, callReCheckers = false): MoveAction {
+  return { pieceId: move.pieceId, to: move.to, mid: move.mid, callReCheckers };
 }
 
 /**
  * Every legal path the side to move has, as search candidates.
  *
- * Brax enforcement is applied here and nowhere else in the search: when a
+ * ReCheckers enforcement is applied here and nowhere else in the search: when a
  * declaration is standing against the side to move, only the named pieces may
  * answer it, so the whole subtree is generated from that reduced set.
  */
 export function listBotMoves(
   state: GameState,
-  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+  boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD
 ): BotMove[] {
   if (state.result !== null) return [];
 
   const moves: BotMove[] = [];
   const mover = state.turn;
   const enforced =
-    state.activeBrax !== null && state.activeBrax.victimColor === mover
-      ? state.activeBrax.threatenedPieceIds
+    state.activeReCheckers !== null && state.activeReCheckers.victimColor === mover
+      ? state.activeReCheckers.threatenedPieceIds
       : null;
 
   for (const [key, piece] of Object.entries(state.board)) {
@@ -79,8 +79,8 @@ export function listBotMoves(
  *
  * `history` is carried by reference rather than appended to: search never reads
  * it, and copying a growing array on every one of thousands of plies is the
- * single most expensive thing a naive simulator does. `activeBrax` is cleared
- * because the search never declares inside a line (see `shouldDeclareBrax`),
+ * single most expensive thing a naive simulator does. `activeReCheckers` is cleared
+ * because the search never declares inside a line (see `shouldDeclareReCheckers`),
  * which is also why a declaration standing at the root correctly expires after
  * the victim has answered it.
  */
@@ -112,7 +112,7 @@ export function simulateMove(state: GameState, move: BotMove): GameState {
     board,
     turn: next,
     turnNumber: state.turnNumber + 1,
-    activeBrax: null,
+    activeReCheckers: null,
     endgame1v1HalfMovesWithoutCapture: counter,
   };
 }
@@ -147,7 +147,7 @@ export function evaluateTerminal(state: GameState, legalMoves: BotMove[]): Termi
   if (state.endgame1v1HalfMovesWithoutCapture >= 10) return { over: true, winner: 'DRAW' };
 
   if (legalMoves.length === 0) {
-    // The side to move is stalemated, which in Brax is a loss, not a draw.
+    // The side to move is stalemated, which in ReCheckers is a loss, not a draw.
     return { over: true, winner: state.turn === 'RED' ? 'BLUE' : 'RED' };
   }
 

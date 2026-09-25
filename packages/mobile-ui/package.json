@@ -1,5 +1,5 @@
 {
-  "name": "@brax/mobile-ui",
+  "name": "@re-checkers/mobile-ui",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "./types": "./src/types.ts"
   },
   "dependencies": {
-    "@brax/engine": "*",
-    "@brax/engine-client": "*"
+    "@re-checkers/engine": "*",
+    "@re-checkers/engine-client": "*"
   },
   "peerDependencies": {
     "react": ">=19",

@@ -1,5 +1,5 @@
 /**
- * Brax AI - Monte Carlo Tree Search with learned priors (PUCT).
+ * ReCheckers AI - Monte Carlo Tree Search with learned priors (PUCT).
  *
  * Each simulation walks four phases:
  *
@@ -26,7 +26,7 @@
  */
 
 import type { GameState, MoveAction, PlayerColor } from '../types.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from '../board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from '../board.ts';
 import {
   evaluateTerminal,
   listBotMoves,
@@ -128,7 +128,7 @@ export class MCTSSearch {
     // Novice is defined as playing without memory, so the book is dropped here
     // rather than left to every call site to remember.
     this.experience = this.profile.experienceWeight > 0 ? options.experience ?? null : null;
-    this.boardGraph = options.boardGraph ?? CANONICAL_BRAX_BOARD;
+    this.boardGraph = options.boardGraph ?? CANONICAL_RE_CHECKERS_BOARD;
     this.random = options.random ?? Math.random;
     this.now = options.now ?? (() => Date.now());
   }
@@ -305,7 +305,7 @@ export class MCTSSearch {
   /**
    * Plays on from `state` to the profile's depth, then scores what is left.
    *
-   * Capping is not an optimisation here: Brax has no move counter and no
+   * Capping is not an optimisation here: ReCheckers has no move counter and no
    * repetition rule outside the 1v1 endgame, so two pieces can shuffle between
    * the same pair of nodes indefinitely and an uncapped playout never returns.
    * The cap is bounded again by MAX_ROLLOUT_PLIES so no profile can lift it.

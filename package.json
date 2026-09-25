@@ -1,5 +1,5 @@
 {
-  "name": "brax-game",
+  "name": "re-checkers-game",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,16 +9,16 @@
     "services/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @brax/web",
-    "build": "npm run build --workspace @brax/web",
-    "mobile": "npm run start --workspace @brax/mobile",
-    "mobile:ios": "npm run ios --workspace @brax/mobile",
-    "mobile:android": "npm run android --workspace @brax/mobile",
-    "mobile:build": "npm run build:preview --workspace @brax/mobile",
-    "engine:dev": "npm run dev --workspace @brax/engine-api",
-    "engine:start": "npm run start --workspace @brax/engine-api",
-    "engine:bundle": "npm run bundle --workspace @brax/engine-api",
-    "engine:image": "docker build -f services/engine-api/Dockerfile -t brax-engine:dev .",
+    "dev": "npm run dev --workspace @re-checkers/web",
+    "build": "npm run build --workspace @re-checkers/web",
+    "mobile": "npm run start --workspace @re-checkers/mobile",
+    "mobile:ios": "npm run ios --workspace @re-checkers/mobile",
+    "mobile:android": "npm run android --workspace @re-checkers/mobile",
+    "mobile:build": "npm run build:preview --workspace @re-checkers/mobile",
+    "engine:dev": "npm run dev --workspace @re-checkers/engine-api",
+    "engine:start": "npm run start --workspace @re-checkers/engine-api",
+    "engine:bundle": "npm run bundle --workspace @re-checkers/engine-api",
+    "engine:image": "docker build -f services/engine-api/Dockerfile -t re-checkers-engine:dev .",
     "test": "vitest run",
     "lint": "tsc --noEmit -p tsconfig.json",
     "clean": "node -e \"for (const d of ['apps/web/dist','services/engine-api/dist']) require('fs').rmSync(d, {recursive: true, force: true})\""
@@ -26,12 +26,19 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
-    "@types/react": "^19.3.0",
+    "@types/react": "~19.2.2",
     "dotenv": "^17.2.3",
     "esbuild": "^0.25.0",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
+    "typescript": "~6.0.3",
     "vite": "^6.2.3",
     "vitest": "^5.0.1"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4"
   }
 }

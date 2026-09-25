@@ -15,13 +15,13 @@ export default defineConfig({
   resolve: {
     alias: {
       // Subpaths must precede their parent.
-      '@brax/engine-client/local': r('packages/engine-client/src/local-client.ts'),
-      '@brax/engine-client/http': r('packages/engine-client/src/http-client.ts'),
-      '@brax/engine-client': r('packages/engine-client/src/index.ts'),
-      '@brax/engine/view': r('packages/engine/src/view.ts'),
-      '@brax/engine': r('packages/engine/src/index.ts'),
-      '@brax/mobile-ui/engine': r('packages/mobile-ui/src/engine.ts'),
-      '@brax/mobile-ui': r('packages/mobile-ui/src/index.ts'),
+      '@re-checkers/engine-client/local': r('packages/engine-client/src/local-client.ts'),
+      '@re-checkers/engine-client/http': r('packages/engine-client/src/http-client.ts'),
+      '@re-checkers/engine-client': r('packages/engine-client/src/index.ts'),
+      '@re-checkers/engine/view': r('packages/engine/src/view.ts'),
+      '@re-checkers/engine': r('packages/engine/src/index.ts'),
+      '@re-checkers/mobile-ui/engine': r('packages/mobile-ui/src/engine.ts'),
+      '@re-checkers/mobile-ui': r('packages/mobile-ui/src/index.ts'),
     },
   },
   test: {

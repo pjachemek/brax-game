@@ -1,5 +1,5 @@
 {
-  "name": "@brax/engine-client",
+  "name": "@re-checkers/engine-client",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,6 @@
     "./http": "./src/http-client.ts"
   },
   "dependencies": {
-    "@brax/engine": "*"
+    "@re-checkers/engine": "*"
   }
 }

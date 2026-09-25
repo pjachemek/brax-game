@@ -1,5 +1,5 @@
 /**
- * Brax AI - MCTS, evaluation and the Experience Book.
+ * ReCheckers AI - MCTS, evaluation and the Experience Book.
  *
  * The bot is stochastic, so these tests are written to assert things that hold
  * for *every* seed rather than things that happen to hold for one: budgets and
@@ -10,10 +10,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { BraxEngine } from '../../engine.ts';
+import { ReCheckersEngine } from '../../engine.ts';
 import { GameSessionManager } from '../../../session/manager.ts';
 import {
-  BraxBot,
+  ReCheckersBot,
   DIFFICULTY_PROFILES,
   ExperienceBook,
   MCTSSearch,
@@ -27,7 +27,7 @@ import {
 } from '../index.ts';
 import type { GameState, MoveAction, Piece } from '../../types.ts';
 
-const engine = new BraxEngine();
+const engine = new ReCheckersEngine();
 
 function emptyState(overrides: Partial<GameState> = {}): GameState {
   const board: Record<string, Piece | null> = {};
@@ -40,8 +40,8 @@ function emptyState(overrides: Partial<GameState> = {}): GameState {
     turn: 'RED',
     turnNumber: 1,
     capturedPieces: { RED: [], BLUE: [] },
-    activeBrax: null,
-    lastBraxCallTurn: { RED: null, BLUE: null },
+    activeReCheckers: null,
+    lastReCheckersCallTurn: { RED: null, BLUE: null },
     history: [],
     result: null,
     gameModeId: 'two_player',
@@ -69,7 +69,7 @@ function seeded(seed: number): () => number {
   };
 }
 
-describe('Brax AI - move generation and simulation', () => {
+describe('ReCheckers AI - move generation and simulation', () => {
   it('generates only moves the rules engine also accepts', () => {
     const state = engine.initGame('two_player');
     const moves = listBotMoves(state);
@@ -85,11 +85,11 @@ describe('Brax AI - move generation and simulation', () => {
     }
   });
 
-  it('obeys a standing Brax declaration, generating only for the named pieces', () => {
+  it('obeys a standing ReCheckers declaration, generating only for the named pieces', () => {
     const state = engine.initGame('two_player');
-    const braxed: GameState = {
+    const underReCheckers: GameState = {
       ...state,
-      activeBrax: {
+      activeReCheckers: {
         callerColor: 'BLUE',
         victimColor: 'RED',
         threatenedPieceIds: ['R3'],
@@ -97,7 +97,7 @@ describe('Brax AI - move generation and simulation', () => {
       },
     };
 
-    const movers = new Set(listBotMoves(braxed).map((m) => m.pieceId));
+    const movers = new Set(listBotMoves(underReCheckers).map((m) => m.pieceId));
     expect(Array.from(movers)).toEqual(['R3']);
   });
 
@@ -137,7 +137,7 @@ describe('Brax AI - move generation and simulation', () => {
   });
 });
 
-describe('Brax AI - MCTS tree', () => {
+describe('ReCheckers AI - MCTS tree', () => {
   it('accounts for every simulation exactly once across the root children', () => {
     const search = new MCTSSearch({ difficulty: 'intermediate', random: seeded(7) });
     const result = search.search(engine.initGame('two_player'), 'RED');
@@ -183,16 +183,16 @@ describe('Brax AI - MCTS tree', () => {
 
   it('plays the only legal move without spending a search on it', () => {
     // R1 in the corner with its own pieces on every square it could reach but
-    // one, and a standing Brax that only R1 may answer: exactly one legal move.
+    // one, and a standing ReCheckers that only R1 may answer: exactly one legal move.
     const state = emptyState();
     place(state, '0,0', red('R1'));
     place(state, '1,0', red('R2'));
     place(state, '1,1', red('R3'));
     place(state, '0,2', red('R4'));
     place(state, '8,8', blue('B1'));
-    const braxed: GameState = {
+    const underReCheckers: GameState = {
       ...state,
-      activeBrax: {
+      activeReCheckers: {
         callerColor: 'BLUE',
         victimColor: 'RED',
         threatenedPieceIds: ['R1'],
@@ -200,10 +200,10 @@ describe('Brax AI - MCTS tree', () => {
       },
     };
 
-    expect(listBotMoves(braxed)).toHaveLength(1);
+    expect(listBotMoves(underReCheckers)).toHaveLength(1);
 
     const search = new MCTSSearch({ difficulty: 'master' });
-    const result = search.search(braxed, 'RED');
+    const result = search.search(underReCheckers, 'RED');
 
     expect(result.simulations).toBe(0);
     expect(result.move?.pieceId).toBe('R1');
@@ -228,7 +228,7 @@ describe('Brax AI - MCTS tree', () => {
   });
 });
 
-describe('Brax AI - tactical competence at Master', () => {
+describe('ReCheckers AI - tactical competence at Master', () => {
   /**
    * Master's own settings, with the wall clock lifted.
    *
@@ -319,7 +319,7 @@ describe('Brax AI - tactical competence at Master', () => {
   }, 20_000);
 
   it('routes the chosen difficulty through the bot to the search', async () => {
-    const bot = new BraxBot({ engine, experienceOptions: { storage: null } });
+    const bot = new ReCheckersBot({ engine, experienceOptions: { storage: null } });
     for (const difficulty of ['novice', 'intermediate', 'master'] as const) {
       const decision = await bot.decide(engine.initGame('two_player'), 'RED', difficulty);
       expect(decision, difficulty).not.toBeNull();
@@ -329,7 +329,7 @@ describe('Brax AI - tactical competence at Master', () => {
   }, 20_000);
 
   it('never returns a move the rules engine would refuse', async () => {
-    const bot = new BraxBot({ engine });
+    const bot = new ReCheckersBot({ engine });
     let state = engine.initGame('two_player');
 
     for (let ply = 0; ply < 12 && state.result === null; ply++) {
@@ -342,14 +342,14 @@ describe('Brax AI - tactical competence at Master', () => {
   });
 });
 
-describe('Brax AI - the bot never passes', () => {
+describe('ReCheckers AI - the bot never passes', () => {
   /**
-   * Brax has no pass. A bot turn that produces no move hands the turn back and
+   * ReCheckers has no pass. A bot turn that produces no move hands the turn back and
    * reads, correctly, as a broken game - so the session manager guarantees a
    * move whenever one is legal, however the search behaved.
    */
   it('plays a legal move even when the search itself throws', async () => {
-    const exploding = new BraxBot({ engine, experienceOptions: { storage: null } });
+    const exploding = new ReCheckersBot({ engine, experienceOptions: { storage: null } });
     exploding.decide = async () => {
       throw new Error('search exploded');
     };
@@ -365,7 +365,7 @@ describe('Brax AI - the bot never passes', () => {
   });
 
   it('plays a legal move even when the search returns nothing', async () => {
-    const mute = new BraxBot({ engine, experienceOptions: { storage: null } });
+    const mute = new ReCheckersBot({ engine, experienceOptions: { storage: null } });
     mute.decide = async () => null;
 
     const manager = new GameSessionManager({ engine, bot: mute });
@@ -380,7 +380,7 @@ describe('Brax AI - the bot never passes', () => {
   it('still declines when it genuinely is not the bot to move', async () => {
     const manager = new GameSessionManager({
       engine,
-      bot: new BraxBot({ engine, experienceOptions: { storage: null } }),
+      bot: new ReCheckersBot({ engine, experienceOptions: { storage: null } }),
     });
     const { gameId } = await manager.createGame({ modeId: 'two_player' });
 
@@ -393,7 +393,7 @@ describe('Brax AI - the bot never passes', () => {
   it('never leaves its own turn unplayed over a long game', async () => {
     const manager = new GameSessionManager({
       engine,
-      bot: new BraxBot({ engine, experienceOptions: { storage: null } }),
+      bot: new ReCheckersBot({ engine, experienceOptions: { storage: null } }),
     });
     const { gameId } = await manager.createGame({ modeId: 'two_player' });
 
@@ -410,15 +410,15 @@ describe('Brax AI - the bot never passes', () => {
   }, 120_000);
 });
 
-describe('Brax AI - Brax declaration', () => {
+describe('ReCheckers AI - ReCheckers declaration', () => {
   it('only declares where the rules allow a declaration', async () => {
-    const bot = new BraxBot({ engine });
+    const bot = new ReCheckersBot({ engine });
     let state = engine.initGame('two_player');
 
     for (let ply = 0; ply < 16 && state.result === null; ply++) {
       const decision = await bot.decide(state, state.turn, 'novice');
       if (!decision) break;
-      if (decision.move.callBrax) {
+      if (decision.move.callReCheckers) {
         // The engine refuses a declaration that creates no new threat, or one
         // made in a 2:1 endgame, so validity here is the whole assertion.
         expect(engine.validateMove(state, decision.move).valid).toBe(true);
@@ -428,22 +428,22 @@ describe('Brax AI - Brax declaration', () => {
   });
 
   it('does not declare in an endgame where the right has expired', async () => {
-    // 1v1: Denham's rule revokes Brax for both sides permanently.
+    // 1v1: Denham's rule revokes ReCheckers for both sides permanently.
     const state = emptyState();
     place(state, '4,4', red('R1'));
     place(state, '4,6', blue('B1'));
 
-    const bot = new BraxBot({ engine });
+    const bot = new ReCheckersBot({ engine });
     const decision = await bot.decide(state, 'RED', 'master');
 
-    expect(decision?.move.callBrax).toBe(false);
+    expect(decision?.move.callReCheckers).toBe(false);
   });
 });
 
-describe('Brax AI - the Experience Book', () => {
+describe('ReCheckers AI - the Experience Book', () => {
   /** Plays `plies` real moves and returns the finished state's history. */
   function playLine(plies: number): GameState {
-    const bot = new BraxBot({ engine, random: seeded(21) });
+    const bot = new ReCheckersBot({ engine, random: seeded(21) });
     let state = engine.initGame('two_player');
     for (let i = 0; i < plies; i++) {
       const decision = bot.decideSync(state, state.turn, 'novice');
@@ -541,7 +541,7 @@ describe('Brax AI - the Experience Book', () => {
       pieceId: finished.history[0].pieceId,
       to: finished.history[0].to,
       mid: finished.history[0].mid,
-      callBrax: finished.history[0].calledBrax,
+      callReCheckers: finished.history[0].calledReCheckers,
     });
     const entry = book.getEntry(
       hashState(stateBefore),
@@ -589,7 +589,7 @@ describe('Brax AI - the Experience Book', () => {
           from: { x: 0, y: 0 },
           to: { x: 0, y: 1 },
           distance: 1,
-          calledBrax: false,
+          calledReCheckers: false,
           algebraic: 'A1-A2',
           timestamp: 0,
         },
@@ -603,7 +603,7 @@ describe('Brax AI - the Experience Book', () => {
   });
 });
 
-describe('Brax AI - learned priors steer the search', () => {
+describe('ReCheckers AI - learned priors steer the search', () => {
   it('visits a move the book has been winning with more than the search alone would', () => {
     const opening = engine.initGame('two_player');
     const moves = listBotMoves(opening);
@@ -639,7 +639,7 @@ describe('Brax AI - learned priors steer the search', () => {
   });
 });
 
-describe('Brax AI - position hashing', () => {
+describe('ReCheckers AI - position hashing', () => {
   it('gives one position one stable name', () => {
     const a = engine.initGame('two_player');
     const b = engine.initGame('two_player');
@@ -652,18 +652,18 @@ describe('Brax AI - position hashing', () => {
     expect(hashState(state)).not.toBe(hashState({ ...state, turn: 'BLUE' }));
   });
 
-  it('separates a position under Brax from the same board without it', () => {
+  it('separates a position under ReCheckers from the same board without it', () => {
     const state = engine.initGame('two_player');
-    const braxed: GameState = {
+    const underReCheckers: GameState = {
       ...state,
-      activeBrax: {
+      activeReCheckers: {
         callerColor: 'BLUE',
         victimColor: 'RED',
         threatenedPieceIds: ['R1'],
         enforcedAtTurnNumber: 1,
       },
     };
-    expect(hashState(state)).not.toBe(hashState(braxed));
+    expect(hashState(state)).not.toBe(hashState(underReCheckers));
   });
 
   it('ignores how a position was reached', () => {
@@ -679,7 +679,7 @@ describe('Brax AI - position hashing', () => {
           from: { x: 1, y: 0 },
           to: { x: 1, y: 1 },
           distance: 1,
-          calledBrax: false,
+          calledReCheckers: false,
           algebraic: 'B1-B2',
           timestamp: 0,
         },

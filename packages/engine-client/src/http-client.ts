@@ -1,5 +1,5 @@
 /**
- * @brax/engine-client - HTTP adapter for the hosted engine service.
+ * @re-checkers/engine-client - HTTP adapter for the hosted engine service.
  *
  * Wire contract (see services/engine-api):
  *   GET    /health
@@ -10,7 +10,7 @@
  *   POST   /v1/games/:id/reset           { modeId? }                -> snapshot
  *   PUT    /v1/games/:id/state           { state }                  -> snapshot
  *   GET    /v1/games/:id/moves[?pieceId=]                           -> { moves }
- *   POST   /v1/games/:id/move-options    { pieceId, to }            -> { moves, canCallBrax }
+ *   POST   /v1/games/:id/move-options    { pieceId, to }            -> { moves, canCallReCheckers }
  *   GET    /v1/games/:id/threats[?color=]                           -> { threats }
  *   GET    /v1/games/:id/turn-context                               -> turn context
  *   POST   /v1/games/:id/moves/validate  { move }                   -> validation
@@ -29,7 +29,7 @@
 // and the index re-exports the rulebook — modes, threats, the AI. A bundler
 // that does not tree-shake (Metro, for the React Native app) would pull all of
 // it into a client whose whole point is that the rules run somewhere else.
-import { EngineError } from '@brax/engine/view';
+import { EngineError } from '@re-checkers/engine/view';
 import {
   type AIDifficulty,
   type CreateGameOptions,
@@ -46,14 +46,14 @@ import {
   type ThreatenedPieceInfo,
   type TurnContextResult,
   type ValidationResult,
-} from '@brax/engine';
+} from '@re-checkers/engine';
 
-import type { ApplyMoveRequestOptions, BraxEngineClient } from './types.ts';
+import type { ApplyMoveRequestOptions, ReCheckersEngineClient } from './types.ts';
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export interface HttpEngineClientOptions {
-  /** Base URL of the engine service, e.g. https://engine.brax.example */
+  /** Base URL of the engine service, e.g. https://engine.recheckers.example */
   baseUrl: string;
   /** Injectable for tests / non-browser runtimes. Defaults to global fetch. */
   fetch?: FetchLike;
@@ -67,7 +67,7 @@ export interface HttpEngineClientOptions {
 
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
-export class HttpEngineClient implements BraxEngineClient {
+export class HttpEngineClient implements ReCheckersEngineClient {
   public readonly transport = 'http' as const;
 
   private readonly baseUrl: string;

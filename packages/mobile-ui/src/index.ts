@@ -1,5 +1,5 @@
 /**
- * Brax Mobile UI Package Entry Point
+ * ReCheckers Mobile UI Package Entry Point
  *
  * Folder layout:
  *   engine.ts   - the transport seam each host app configures at startup

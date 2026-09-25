@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: brax-engine
-  namespace: brax
+  name: re-checkers-engine
+  namespace: reCheckers
   labels:
-    app.kubernetes.io/name: brax-engine
+    app.kubernetes.io/name: re-checkers-engine
 spec:
   type: ClusterIP
   selector:
-    app.kubernetes.io/name: brax-engine
+    app.kubernetes.io/name: re-checkers-engine
   ports:
     # The hop the Ingress cannot show you, spelled out:
     #

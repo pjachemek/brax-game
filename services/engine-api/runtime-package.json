@@ -1,5 +1,5 @@
 {
-  "name": "brax-engine-runtime",
+  "name": "re-checkers-engine-runtime",
   "private": true,
   "type": "module",
   "description": "Runtime manifest for the container image: the bundle's only unbundled dependency.",

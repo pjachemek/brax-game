@@ -1,31 +1,31 @@
-# Brax — Architecture
+# Re-Checkers — Architecture
 
 The rules engine is a separate package and a separately deployable service. The
 apps do not contain the rulebook; they talk to it through one interface.
 
 ```
-packages/engine/          @brax/engine         rules + session lifecycle, no IO, no UI
+packages/engine/          @re-checkers/engine         rules + session lifecycle, no IO, no UI
   src/core/                                    the pure rulebook (modes, movement, threats)
   src/core/ai/                                 MCTS bot + the persistent Experience Book
   src/session/                                 server-authoritative sessions on top of it
-  src/view.ts             @brax/engine/view    board topology + read-only state lookups, for renderers
+  src/view.ts             @re-checkers/engine/view    board topology + read-only state lookups, for renderers
 
-packages/engine-client/   @brax/engine-client  the BraxEngineClient interface
+packages/engine-client/   @re-checkers/engine-client  the Re-CheckersEngineClient interface
   src/local-client.ts                          runs the engine in-process
   src/http-client.ts                           calls the hosted service
 
-packages/mobile-ui/       @brax/mobile-ui      React Native view layer + Zustand store
+packages/mobile-ui/       @re-checkers/mobile-ui      React Native view layer + Zustand store
   src/engine.ts                                the transport seam each app fills in
   src/store/useGameStore.ts                    mobile session
 
-services/engine-api/      @brax/engine-api     Express service wrapping GameSessionManager
+services/engine-api/      @re-checkers/engine-api     Express service wrapping GameSessionManager
   Dockerfile                                   -> container image
   deploy/                                      -> k3s manifests
 
-apps/web/                 @brax/web            Vite workbench: board, scenarios, tests, simulator
+apps/web/                 @re-checkers/web            Vite workbench: board, scenarios, tests, simulator
   src/services/engineClient.ts                 picks a transport from VITE_ENGINE_TRANSPORT
 
-apps/mobile/              @brax/mobile         Expo app -> iOS and Android
+apps/mobile/              @re-checkers/mobile         Expo app -> iOS and Android
   src/engine.ts                                http transport only, EXPO_PUBLIC_ENGINE_URL
 ```
 
@@ -51,8 +51,8 @@ one file. It never sees the Vite or Expo dependency graphs, so a change under
 `revision`, and asks the engine questions:
 
 - *What can this piece do?* → `getValidMoves`
-- *May this move declare Brax?* → `getMoveOptions`
-- *Whose turn, what's threatened, have Brax rights lapsed?* → `getTurnContext`
+- *May this move declare Re-Checkers?* → `getMoveOptions`
+- *Whose turn, what's threatened, have Re-Checkers rights lapsed?* → `getTurnContext`
 - *Play this move.* → `applyMove(gameId, move, { expectedRevision })`
 
 It never sends a `GameState` back and asks for it to be applied. That is what
@@ -82,7 +82,7 @@ allows, and a rules fix ships by redeploying the engine rather than by waiting
 on an App Store review. The cost is that the app needs a reachable engine to
 open a game.
 
-`@brax/mobile-ui` itself picks no transport. It exposes `configureEngineClient`,
+`@re-checkers/mobile-ui` itself picks no transport. It exposes `configureEngineClient`,
 and each host installs one at startup — the Expo app an HTTP client, the web
 workbench whatever `VITE_ENGINE_TRANSPORT` selected, the store tests a local
 one. That is also what lets the same components run under Metro, which has no
@@ -104,13 +104,13 @@ app release.
 Three things are worth knowing about it:
 
 - **It searches on its own fast path.** The rulebook's `getValidMoves` recomputes
-  the whole threat map per candidate so it can answer "may I declare Brax here?",
+  the whole threat map per candidate so it can answer "may I declare Re-Checkers here?",
   and `applyMove` probes every piece for stalemate. Correct, and far too slow for
   thousands of positions per move. `core/ai/simulation.ts` answers only the two
   questions search asks, off the same primitives (`getRawLegalPathsForPiece`,
   `getCapturesAlongPath`). The move it finally returns is handed back to the real
   engine, which validates it again — the fast path can never widen what is legal.
-- **Rollouts are capped at 25 plies.** Brax has no move counter and no repetition
+- **Rollouts are capped at 25 plies.** Re-Checkers has no move counter and no repetition
   rule outside the 1v1 endgame, so two pieces can shuffle between the same nodes
   forever. The cap is termination, not tuning.
 - **It remembers.** Every finished game — bot or pass-and-play — is replayed and
@@ -127,7 +127,7 @@ together (`core/ai/types.ts`). Master is additionally bounded by a 400ms wall
 clock, which in practice is what stops it — the budget is the ceiling, the clock
 is the floor under responsiveness.
 
-## Why the UI still imports `@brax/engine/view`
+## Why the UI still imports `@re-checkers/engine/view`
 
 Drawing a board needs coordinates, the board graph, the ability to read a piece
 out of a `GameState`, and `EngineError` to tell a rules refusal from a dead
@@ -146,7 +146,7 @@ grepping for `MCTSSearch`, `ExperienceBook` and `calculateThreats` finds none of
 them.
 
 Measured caveat for *this* repo: the web workbench tabs (`TestRunnerView`,
-`ScenariosPanel`) import `@brax/engine` on purpose, so the rulebook is present in
+`ScenariosPanel`) import `@re-checkers/engine` on purpose, so the rulebook is present in
 the web bundle whichever transport is configured. The saving is real for the
 React Native app, which excludes those dev tools — and it is checked: bundling
 `apps/mobile` and grepping the output for `calculateThreats` and `fox_and_geese`
@@ -154,14 +154,14 @@ finds neither. Only `packages/engine/src/core/{geometry,board,movement}.ts`
 reach the device, which is the topology a renderer needs.
 
 This is easy to lose by accident. `http-client.ts` imported `EngineError` from
-the package index rather than from `@brax/engine/view`, and because Metro does
+the package index rather than from `@re-checkers/engine/view`, and because Metro does
 not tree-shake, that one value import dragged the modes, the threat calculation
-and the AI into the app. Value imports from `@brax/engine` do not belong on any
+and the AI into the app. Value imports from `@re-checkers/engine` do not belong on any
 path the mobile app can reach.
 
 ## What is still coupled, deliberately
 
-- `ScenariosPanel` and `TestRunnerView` import `@brax/engine` directly. They are
+- `ScenariosPanel` and `TestRunnerView` import `@re-checkers/engine` directly. They are
   engine development tools — preset positions and the in-browser rules suite —
   not gameplay, and they are meant to exercise the engine in-process. They live
   in `apps/web` only, which is why the mobile bundle is unaffected.

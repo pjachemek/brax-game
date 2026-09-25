@@ -1,5 +1,5 @@
 /**
- * Brax Mobile - playing against the bot.
+ * ReCheckers Mobile - playing against the bot.
  *
  * Covers the three things bot mode changes about the store's contract: the
  * board locks while the bot is on the clock, undo rolls back a whole round
@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { LocalEngineClient } from '@brax/engine-client/local';
-import type { BraxEngineClient } from '@brax/engine-client';
+import { LocalEngineClient } from '@re-checkers/engine-client/local';
+import type { ReCheckersEngineClient } from '@re-checkers/engine-client';
 import { configureEngineClient } from '../../engine.ts';
 import { useGameStore, selectIsBotThinking } from '../useGameStore.ts';
 
@@ -151,7 +151,7 @@ describe('useGameStore - bot mode', () => {
   it('hands a finished game to the Experience Book exactly once', async () => {
     const recorded = vi.fn().mockResolvedValue(undefined);
     const client = new LocalEngineClient();
-    const spy: BraxEngineClient = Object.assign(Object.create(Object.getPrototypeOf(client)), client, {
+    const spy: ReCheckersEngineClient = Object.assign(Object.create(Object.getPrototypeOf(client)), client, {
       recordGameExperience: recorded,
     });
     configureEngineClient(spy);

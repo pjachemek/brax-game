@@ -1,5 +1,5 @@
 /**
- * @brax/engine - Public surface of the Brax rules engine.
+ * @re-checkers/engine - Public surface of the ReCheckers rules engine.
  *
  * `core/*` is the pure, stateless rulebook (no IO, no framework, no clock).
  * `session/*` adds the server-authoritative game lifecycle built on top of it.
@@ -9,8 +9,8 @@
 // --- Pure rules core -------------------------------------------------------
 export * from './core/types.ts';
 export {
-  BraxEngine,
-  defaultBraxEngine,
+  ReCheckersEngine,
+  defaultReCheckersEngine,
   getValidMoves,
   getAllValidMoves,
   applyMove,
@@ -19,7 +19,7 @@ export {
   serializeGameState,
   deserializeGameState,
 } from './core/engine.ts';
-export { BoardGraph, CANONICAL_BRAX_BOARD } from './core/board.ts';
+export { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from './core/board.ts';
 export type { BoardNeighbor } from './core/board.ts';
 export * from './core/geometry.ts';
 export { findPieceCoord, getPieceAt } from './core/movement.ts';
@@ -28,7 +28,7 @@ export {
   getThreatsCreatedByMove,
   getUniqueThreatenedPieceIds,
   isEndgame1v2,
-  canPlayerCallBrax,
+  canPlayerCallReCheckers,
 } from './core/threats.ts';
 // --- Bot / AI --------------------------------------------------------------
 // The whole of core/ai is re-exported: MCTS, the Experience Book, its storage

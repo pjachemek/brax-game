@@ -1,5 +1,5 @@
 /**
- * Brax AI - The Experience Book.
+ * ReCheckers AI - The Experience Book.
  *
  * The bot's long-term memory: for every position it has ever seen played out,
  * how each move from that position went. After a game ends, the whole line is
@@ -19,7 +19,7 @@
  */
 
 import type { GameState, MoveAction, PlayerColor } from '../types.ts';
-import { BraxEngine } from '../engine.ts';
+import { ReCheckersEngine } from '../engine.ts';
 import { hashState } from './zobrist.ts';
 import { moveKey } from './simulation.ts';
 import { createDefaultExperienceStorage } from './storage.ts';
@@ -50,14 +50,14 @@ export interface ExperienceBookOptions {
   storage?: ExperienceStorage | null;
   maxPositions?: number;
   /** Engine used to replay finished games. Defaults to a fresh one. */
-  engine?: BraxEngine;
+  engine?: ReCheckersEngine;
 }
 
 export class ExperienceBook {
   private entries = new Map<string, Map<string, ExperienceEntry>>();
   private readonly storage: ExperienceStorage | null;
   private readonly maxPositions: number;
-  private readonly engine: BraxEngine;
+  private readonly engine: ReCheckersEngine;
   private games = 0;
   private loaded: Promise<void> | null = null;
   /** Coalesces bursts of writes into one save. */
@@ -67,7 +67,7 @@ export class ExperienceBook {
     this.storage =
       options.storage === undefined ? createDefaultExperienceStorage() : options.storage;
     this.maxPositions = options.maxPositions ?? DEFAULT_MAX_POSITIONS;
-    this.engine = options.engine ?? new BraxEngine();
+    this.engine = options.engine ?? new ReCheckersEngine();
   }
 
   /** Idempotent: many searches may race to be the first to need the book. */
@@ -162,7 +162,7 @@ export class ExperienceBook {
         pieceId: item.pieceId,
         to: item.to,
         mid: item.mid,
-        callBrax: item.calledBrax,
+        callReCheckers: item.calledReCheckers,
       };
 
       const stateHash = hashState(state);

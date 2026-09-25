@@ -20,14 +20,14 @@
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_ENGINE_URL": "https://engine.staging.brax.example"
+        "EXPO_PUBLIC_ENGINE_URL": "https://engine.staging.recheckers.example"
       }
     },
     "production": {
       "extends": "base",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_ENGINE_URL": "https://engine.brax.example",
+        "EXPO_PUBLIC_ENGINE_URL": "https://engine.recheckers.example",
         "EXPO_PUBLIC_ENGINE_TIMEOUT_MS": "10000"
       }
     }

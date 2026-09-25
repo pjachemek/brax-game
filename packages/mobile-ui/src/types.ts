@@ -1,13 +1,13 @@
 /**
- * Brax Mobile UI - Types & State Definitions
+ * ReCheckers Mobile UI - Types & State Definitions
  *
  * The store no longer owns the rules or the board's history: it holds a
  * projection of a server-authoritative session (gameId + revision) and talks to
- * the engine exclusively through BraxEngineClient. Every action is async
+ * the engine exclusively through ReCheckersEngineClient. Every action is async
  * because the engine may be a network hop away.
  */
 
-import type { BotPlayConfig, GameState, MoveAction, NodeCoord } from '@brax/engine';
+import type { BotPlayConfig, GameState, MoveAction, NodeCoord } from '@re-checkers/engine';
 
 /**
  * High-level interactive phases for player turn flow.
@@ -16,7 +16,7 @@ export type TurnPhase =
   | 'CONNECTING'           // No session yet; creating or reattaching to a game
   | 'AWAITING_SELECTION'   // Waiting for player to select their piece
   | 'PIECE_SELECTED'       // Piece is selected; valid target highlights visible
-  | 'PENDING_BRAX_CHOICE'  // Move creates threat; player chooses "Call Brax!" vs "Normal Move"
+  | 'PENDING_RE_CHECKERS_CHOICE'  // Move creates threat; player chooses "Call Re-Checkers!" vs "Normal Move"
   | 'GAME_OVER';           // Victory / draw achieved
 
 export interface GameStoreState {
@@ -33,7 +33,7 @@ export interface GameStoreState {
   selectedPieceId: string | null;
   validMoves: MoveAction[];
   turnPhase: TurnPhase;
-  pendingMove: MoveAction | null; // Move staged pending Brax choice
+  pendingMove: MoveAction | null; // Move staged pending ReCheckers choice
 
   // --- Opponent ---
   /** Who the bot is, if anyone. `enabled: false` is pass-and-play. */
@@ -70,7 +70,7 @@ export interface GameStoreState {
   selectPiece: (pieceId: string) => Promise<void>;
   unselectPiece: () => void;
   selectDestination: (coord: NodeCoord) => Promise<void>;
-  confirmBraxChoice: (callBrax: boolean) => Promise<void>;
+  confirmReCheckersChoice: (callReCheckers: boolean) => Promise<void>;
   cancelPendingMove: () => void;
   undoMove: () => Promise<void>;
   resetGame: (modeId?: string) => Promise<void>;

@@ -1,5 +1,5 @@
 /**
- * Brax Rules Engine - Architecture & Integration Guide Modal/View
+ * ReCheckers Rules Engine - Architecture & Integration Guide Modal/View
  * Technical documentation for TypeScript developers integrating the engine.
  */
 
@@ -9,33 +9,33 @@ import { Layers, Code2, Smartphone, Cpu, Check, Copy } from 'lucide-react';
 export const ArchitectureView: React.FC = () => {
   const [copied, setCopied] = React.useState(false);
 
-  const integrationSnippet = `// Integracja z silnikiem Brax (React Native / Web / Node)
+  const integrationSnippet = `// Integracja z silnikiem ReCheckers (React Native / Web / Node)
 // Aplikacja nie importuje reguł — rozmawia z silnikiem przez klienta.
-import { createEngineClient } from '@brax/engine-client';
+import { createEngineClient } from '@re-checkers/engine-client';
 
 // 1. Wybór transportu: silnik lokalny albo hostowany serwis.
 //    Zmiana transportu nie wymaga żadnej zmiany w UI.
 const engine = createEngineClient({ transport: 'local' });
 // const engine = createEngineClient({
 //   transport: 'http',
-//   baseUrl: 'https://engine.brax.example',
+//   baseUrl: 'https://engine.recheckers.example',
 // });
 
 // 2. Sesja gry jest autorytatywna po stronie silnika.
 //    Klient trzyma tylko gameId i numer rewizji.
 const { gameId, state, revision } = await engine.createGame({ modeId: 'two_player' });
 
-// 3. Legalne ruchy (z uwzględnieniem wymuszeń Brax) liczy silnik.
+// 3. Legalne ruchy (z uwzględnieniem wymuszeń ReCheckers) liczy silnik.
 const validMoves = await engine.getValidMoves(gameId, 'R1');
 
-// 4. Czy ten ruch pozwala zawołać Brax — to też pytanie o regułę.
-const { moves, canCallBrax } = await engine.getMoveOptions(gameId, 'R1', { x: 2, y: 1 });
+// 4. Czy ten ruch pozwala zawołać ReCheckers — to też pytanie o regułę.
+const { moves, canCallReCheckers } = await engine.getMoveOptions(gameId, 'R1', { x: 2, y: 1 });
 
 // 5. Wykonanie ruchu. expectedRevision chroni przed nadpisaniem
 //    partii, która w międzyczasie poszła dalej (drugi tab, drugi gracz).
 const outcome = await engine.applyMove(
   gameId,
-  { ...moves[0], callBrax: canCallBrax },
+  { ...moves[0], callReCheckers: canCallReCheckers },
   { expectedRevision: revision }
 );
 
@@ -53,7 +53,7 @@ const snapshot = await engine.undo(gameId);`;
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Layers className="w-5 h-5 text-indigo-600" />
-          <h3 className="font-bold text-slate-800 text-lg">Architektura Silnika Reguł Brax</h3>
+          <h3 className="font-bold text-slate-800 text-lg">Architektura Silnika Reguł ReCheckers</h3>
         </div>
         <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full border border-indigo-100">
           Pure TypeScript 5.8+
@@ -61,8 +61,8 @@ const snapshot = await engine.undo(gameId);`;
       </div>
 
       <p className="text-sm text-slate-600 leading-relaxed mb-6">
-        Silnik reguł Brax jest <strong>osobnym pakietem i osobnym procesem</strong>, a nie biblioteką wkompilowaną
-        w aplikację. Warstwa UI zna wyłącznie interfejs <code>BraxEngineClient</code>; pod nim stoi albo
+        Silnik reguł ReCheckers jest <strong>osobnym pakietem i osobnym procesem</strong>, a nie biblioteką wkompilowaną
+        w aplikację. Warstwa UI zna wyłącznie interfejs <code>ReCheckersEngineClient</code>; pod nim stoi albo
         silnik w tym samym procesie (<code>LocalEngineClient</code>, gra offline), albo hostowany serwis
         (<code>HttpEngineClient</code>). Sesja gry jest autorytatywna po stronie silnika: klient nie odsyła
         <code>GameState</code>, tylko <code>gameId</code> i numer rewizji, więc nie może przepisać planszy.
@@ -85,7 +85,7 @@ const snapshot = await engine.undo(gameId);`;
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
           <div className="flex items-center gap-2 text-slate-800 font-bold text-sm mb-1.5">
             <Layers className="w-4 h-4 text-emerald-600" />
-            <span>Interfejs BraxGameMode</span>
+            <span>Interfejs ReCheckersGameMode</span>
           </div>
           <p className="text-xs text-slate-600 leading-relaxed">
             Wzorzec Strategy: <code>initBoard</code>, <code>validateMove</code>, <code>applyMove</code>,{' '}

@@ -17,16 +17,16 @@
     // extends this inherits the mapping already pointing at the right place,
     // so none of them has to restate a base directory.
     "paths": {
-      "@brax/engine": ["./packages/engine/src/index.ts"],
-      "@brax/engine/view": ["./packages/engine/src/view.ts"],
-      "@brax/engine/*": ["./packages/engine/src/*"],
-      "@brax/engine-client": ["./packages/engine-client/src/index.ts"],
-      "@brax/engine-client/local": ["./packages/engine-client/src/local-client.ts"],
-      "@brax/engine-client/http": ["./packages/engine-client/src/http-client.ts"],
-      "@brax/engine-client/*": ["./packages/engine-client/src/*"],
-      "@brax/mobile-ui": ["./packages/mobile-ui/src/index.ts"],
-      "@brax/mobile-ui/engine": ["./packages/mobile-ui/src/engine.ts"],
-      "@brax/mobile-ui/*": ["./packages/mobile-ui/src/*"]
+      "@re-checkers/engine": ["./packages/engine/src/index.ts"],
+      "@re-checkers/engine/view": ["./packages/engine/src/view.ts"],
+      "@re-checkers/engine/*": ["./packages/engine/src/*"],
+      "@re-checkers/engine-client": ["./packages/engine-client/src/index.ts"],
+      "@re-checkers/engine-client/local": ["./packages/engine-client/src/local-client.ts"],
+      "@re-checkers/engine-client/http": ["./packages/engine-client/src/http-client.ts"],
+      "@re-checkers/engine-client/*": ["./packages/engine-client/src/*"],
+      "@re-checkers/mobile-ui": ["./packages/mobile-ui/src/index.ts"],
+      "@re-checkers/mobile-ui/engine": ["./packages/mobile-ui/src/engine.ts"],
+      "@re-checkers/mobile-ui/*": ["./packages/mobile-ui/src/*"]
     }
   }
 }

@@ -1,4 +1,4 @@
-# Brax — web workbench
+# Re-Checkers — web workbench
 
 A Vite app that is both the browser board and the engine's development bench:
 scenario presets, the in-browser rules suite, the architecture notes, and a
@@ -19,7 +19,7 @@ VITE_ENGINE_TRANSPORT=http
 VITE_ENGINE_URL=https://engine.example   # hosted engine
 ```
 
-The workbench tabs import `@brax/engine` directly whichever transport is set —
+The workbench tabs import `@re-checkers/engine` directly whichever transport is set —
 they exist to exercise the rulebook in-process — so this bundle always contains
 it. That is a property of the dev tools, not of the gameplay path; the mobile
 app ships neither.

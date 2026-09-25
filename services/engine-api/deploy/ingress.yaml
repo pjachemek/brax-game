@@ -3,29 +3,29 @@
 #
 # TLS assumes cert-manager with a ClusterIssuer named letsencrypt-prod. Without
 # cert-manager, drop the annotation and the tls block, or supply the secret
-# yourself: kubectl -n brax create secret tls brax-engine-tls --cert=... --key=...
+# yourself: kubectl -n reCheckers create secret tls re-checkers-engine-tls --cert=... --key=...
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: brax-engine
-  namespace: brax
+  name: re-checkers-engine
+  namespace: reCheckers
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
 spec:
   tls:
     - hosts:
-        - engine.brax.example
-      secretName: brax-engine-tls
+        - engine.recheckers.example
+      secretName: re-checkers-engine-tls
   rules:
-    - host: engine.brax.example
+    - host: engine.recheckers.example
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: brax-engine
+                name: re-checkers-engine
                 port:
                   # The Service port named "http" (service.yaml: port 80), which
                   # forwards to containerPort 4000. Traefik talks to the Service,

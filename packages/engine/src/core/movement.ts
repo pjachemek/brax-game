@@ -1,6 +1,6 @@
 /**
- * Brax Rules Engine - Movement Validation & Path Finding
- * Calculates distance 1 and distance 2 moves adhering to official Brax rules.
+ * ReCheckers Rules Engine - Movement Validation & Path Finding
+ * Calculates distance 1 and distance 2 moves adhering to official ReCheckers rules.
  */
 
 import {
@@ -18,7 +18,7 @@ import {
   getOrthogonalNeighbors,
   isValidCoord,
 } from './geometry.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from './board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from './board.ts';
 
 /**
  * Finds the coordinate of a piece by ID in the given game state board.
@@ -79,13 +79,13 @@ export function getCapturesAlongPath(
 
 /**
  * Finds all legal distance 1 and distance 2 movement paths for a piece from its current location,
- * ignoring turn restrictions and Brax forcing (raw kinematic legality).
+ * ignoring turn restrictions and ReCheckers forcing (raw kinematic legality).
  */
 export function getRawLegalPathsForPiece(
   state: GameState,
   piece: Piece,
   fromCoord: NodeCoord,
-  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+  boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD
 ): MovePath[] {
   const paths: MovePath[] = [];
   const pieceColor = piece.color;
@@ -174,12 +174,12 @@ export function getRawLegalPathsForPiece(
 }
 
 /**
- * Validates a proposed move action against board rules, piece ownership, and Brax enforcement.
+ * Validates a proposed move action against board rules, piece ownership, and ReCheckers enforcement.
  */
 export function validateMoveAction(
   state: GameState,
   move: MoveAction,
-  boardGraph: BoardGraph = CANONICAL_BRAX_BOARD
+  boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD
 ): ValidationResult {
   if (state.result !== null) {
     return { valid: false, reason: 'Game has already ended.' };
@@ -200,13 +200,13 @@ export function validateMoveAction(
     };
   }
 
-  // Verify Brax enforcement (victim must move one of the threatened pieces)
-  if (state.activeBrax !== null && state.activeBrax.victimColor === state.turn) {
-    const isThreatenedPiece = state.activeBrax.threatenedPieceIds.includes(piece.id);
+  // Verify ReCheckers enforcement (victim must move one of the threatened pieces)
+  if (state.activeReCheckers !== null && state.activeReCheckers.victimColor === state.turn) {
+    const isThreatenedPiece = state.activeReCheckers.threatenedPieceIds.includes(piece.id);
     if (!isThreatenedPiece) {
       return {
         valid: false,
-        reason: `Brax was called! You must move one of the threatened pieces (${state.activeBrax.threatenedPieceIds.join(
+        reason: `ReCheckers was called! You must move one of the threatened pieces (${state.activeReCheckers.threatenedPieceIds.join(
           ', '
         )}).`,
       };
@@ -273,7 +273,7 @@ export function validateMoveAction(
       pieceId: move.pieceId,
       to: move.to,
       mid: chosenPath.p1,
-      callBrax: Boolean(move.callBrax),
+      callReCheckers: Boolean(move.callReCheckers),
     },
     path: chosenPath,
   };

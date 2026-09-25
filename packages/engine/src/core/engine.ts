@@ -1,10 +1,10 @@
 /**
- * Brax Rules Engine - Main Stateless Engine & Public API
+ * ReCheckers Rules Engine - Main Stateless Engine & Public API
  * Fully decoupled from UI framework, fully serializable, and immutable.
  */
 
 import {
-  BraxGameMode,
+  ReCheckersGameMode,
   GameState,
   MoveAction,
   PlayerColor,
@@ -13,31 +13,31 @@ import {
   GameResult,
   ThreatenedPieceInfo,
 } from './types.ts';
-import { BoardGraph, CANONICAL_BRAX_BOARD } from './board.ts';
+import { BoardGraph, CANONICAL_RE_CHECKERS_BOARD } from './board.ts';
 import { TwoPlayerClassicMode } from './modes/two-player-classic.ts';
-import { FoxAndGeeseBraxMode } from './modes/fox-and-geese.ts';
+import { FoxAndGeeseReCheckersMode } from './modes/fox-and-geese.ts';
 import { calculateThreats } from './threats.ts';
 
-export class BraxEngine {
-  private readonly modes: Map<string, BraxGameMode> = new Map();
+export class ReCheckersEngine {
+  private readonly modes: Map<string, ReCheckersGameMode> = new Map();
   private readonly boardGraph: BoardGraph;
 
-  constructor(boardGraph: BoardGraph = CANONICAL_BRAX_BOARD) {
+  constructor(boardGraph: BoardGraph = CANONICAL_RE_CHECKERS_BOARD) {
     this.boardGraph = boardGraph;
 
     // Register standard modes
     this.registerMode(new TwoPlayerClassicMode(this.boardGraph));
-    this.registerMode(new FoxAndGeeseBraxMode(this.boardGraph));
+    this.registerMode(new FoxAndGeeseReCheckersMode(this.boardGraph));
   }
 
-  public registerMode(mode: BraxGameMode): void {
+  public registerMode(mode: ReCheckersGameMode): void {
     this.modes.set(mode.id, mode);
   }
 
-  public getMode(modeId: string = 'two_player'): BraxGameMode {
+  public getMode(modeId: string = 'two_player'): ReCheckersGameMode {
     const mode = this.modes.get(modeId);
     if (!mode) {
-      throw new Error(`Game mode "${modeId}" is not registered in BraxEngine.`);
+      throw new Error(`Game mode "${modeId}" is not registered in ReCheckersEngine.`);
     }
     return mode;
   }
@@ -59,7 +59,7 @@ export class BraxEngine {
   }
 
   /**
-   * Returns the turn context, active player, and Brax callable status.
+   * Returns the turn context, active player, and ReCheckers callable status.
    */
   public getTurnOrder(state: GameState): PlayerTurnContext {
     const mode = this.getMode(state.gameModeId);
@@ -91,7 +91,7 @@ export class BraxEngine {
   }
 
   /**
-   * Computes all valid legal moves for a piece in accordance with callBrax restrictions.
+   * Computes all valid legal moves for a piece in accordance with callReCheckers restrictions.
    */
   public getValidMoves(state: GameState, pieceId: string): MoveAction[] {
     const mode = this.getMode(state.gameModeId);
@@ -136,43 +136,43 @@ export class BraxEngine {
   public deserialize(json: string): GameState {
     const parsed = JSON.parse(json) as GameState;
     if (!parsed || !parsed.board || !parsed.turn || !parsed.gameModeId) {
-      throw new Error('Invalid serialized Brax GameState: missing core fields.');
+      throw new Error('Invalid serialized ReCheckers GameState: missing core fields.');
     }
     return Object.freeze(parsed);
   }
 }
 
 // Default singleton engine instance
-export const defaultBraxEngine = new BraxEngine(CANONICAL_BRAX_BOARD);
+export const defaultReCheckersEngine = new ReCheckersEngine(CANONICAL_RE_CHECKERS_BOARD);
 
 /**
  * Top-level functional export as specified in requirement 5:
  * getValidMoves(state: GameState, pieceId: string): MoveAction[]
  */
 export function getValidMoves(state: GameState, pieceId: string): MoveAction[] {
-  return defaultBraxEngine.getValidMoves(state, pieceId);
+  return defaultReCheckersEngine.getValidMoves(state, pieceId);
 }
 
 export function getAllValidMoves(state: GameState): MoveAction[] {
-  return defaultBraxEngine.getAllValidMoves(state);
+  return defaultReCheckersEngine.getAllValidMoves(state);
 }
 
 export function applyMove(state: GameState, move: MoveAction): GameState {
-  return defaultBraxEngine.applyMove(state, move);
+  return defaultReCheckersEngine.applyMove(state, move);
 }
 
 export function validateMove(state: GameState, move: MoveAction): ValidationResult {
-  return defaultBraxEngine.validateMove(state, move);
+  return defaultReCheckersEngine.validateMove(state, move);
 }
 
 export function initGame(modeId: string = 'two_player'): GameState {
-  return defaultBraxEngine.initGame(modeId);
+  return defaultReCheckersEngine.initGame(modeId);
 }
 
 export function serializeGameState(state: GameState): string {
-  return defaultBraxEngine.serialize(state);
+  return defaultReCheckersEngine.serialize(state);
 }
 
 export function deserializeGameState(json: string): GameState {
-  return defaultBraxEngine.deserialize(json);
+  return defaultReCheckersEngine.deserialize(json);
 }

@@ -1,15 +1,15 @@
 /**
- * Unit Tests for Brax Mobile Zustand Store (useGameStore)
- * Validates selection, validMoves, Braxing phase, Braxed restrictions, and undo.
+ * Unit Tests for ReCheckers Mobile Zustand Store (useGameStore)
+ * Validates selection, validMoves, Re-Checkers phase, Re-Checkered restrictions, and undo.
  *
- * The store now talks to the engine through BraxEngineClient, so every action is
+ * The store now talks to the engine through ReCheckersEngineClient, so every action is
  * awaited. These tests run against the local transport; the same assertions hold
  * over HTTP because both adapters drive the same GameSessionManager.
  */
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import type { GameState, Piece } from '@brax/engine/view';
-import { LocalEngineClient } from '@brax/engine-client/local';
+import type { GameState, Piece } from '@re-checkers/engine/view';
+import { LocalEngineClient } from '@re-checkers/engine-client/local';
 import { configureEngineClient } from '../../engine.ts';
 import { useGameStore } from '../useGameStore.ts';
 
@@ -26,8 +26,8 @@ function createEmptyTestState(): GameState {
     turn: 'RED',
     turnNumber: 1,
     capturedPieces: { RED: [], BLUE: [] },
-    activeBrax: null,
-    lastBraxCallTurn: { RED: null, BLUE: null },
+    activeReCheckers: null,
+    lastReCheckersCallTurn: { RED: null, BLUE: null },
     history: [],
     result: null,
     gameModeId: 'two_player',
@@ -65,15 +65,15 @@ describe('useGameStore (React Native Mobile State)', () => {
     expect(updated.validMoves.length).toBeGreaterThan(0);
   });
 
-  it('enforces Brax constraint: blocks unthreatened piece with "You are Braxed!"', async () => {
+  it('enforces Re-Checkers constraint: blocks unthreatened piece with "You are Re-Checkered!"', async () => {
     const testState = createEmptyTestState();
     testState.turn = 'BLUE';
     testState.board['3,1'] = { id: 'B1', color: 'BLUE', side: 'PLAIN' };
     testState.board['7,7'] = { id: 'B2', color: 'BLUE', side: 'PLAIN' };
     testState.board['3,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
 
-    // Active Brax forcing B1
-    testState.activeBrax = {
+    // Active ReCheckers forcing B1
+    testState.activeReCheckers = {
       callerColor: 'RED',
       victimColor: 'BLUE',
       threatenedPieceIds: ['B1'],
@@ -87,7 +87,7 @@ describe('useGameStore (React Native Mobile State)', () => {
 
     const storeAfter = useGameStore.getState();
     expect(storeAfter.selectedPieceId).toBeNull();
-    expect(storeAfter.errorMessage).toContain('You are Braxed! Move a threatened piece');
+    expect(storeAfter.errorMessage).toContain('You are Re-Checkered! Move a threatened piece');
 
     // Selecting threatened piece B1 succeeds
     await useGameStore.getState().selectPiece('B1');
@@ -96,7 +96,7 @@ describe('useGameStore (React Native Mobile State)', () => {
     expect(storeAfterB1.turnPhase).toBe('PIECE_SELECTED');
   });
 
-  it('detects move that creates threat and triggers PENDING_BRAX_CHOICE phase', async () => {
+  it('detects move that creates threat and triggers PENDING_RE_CHECKERS_CHOICE phase', async () => {
     const testState = createEmptyTestState();
     // 3 RED pieces and 3 BLUE pieces to avoid 2:1 endgame expiration
     testState.board['2,0'] = { id: 'R2', color: 'RED', side: 'PLAIN' };
@@ -116,22 +116,22 @@ describe('useGameStore (React Native Mobile State)', () => {
     await useGameStore.getState().selectDestination({ x: 3, y: 0 });
 
     const storeAfterMove = useGameStore.getState();
-    // Turn must not end immediately! It must enter PENDING_BRAX_CHOICE
-    expect(storeAfterMove.turnPhase).toBe('PENDING_BRAX_CHOICE');
+    // Turn must not end immediately! It must enter PENDING_RE_CHECKERS_CHOICE
+    expect(storeAfterMove.turnPhase).toBe('PENDING_RE_CHECKERS_CHOICE');
     expect(storeAfterMove.pendingMove).not.toBeNull();
     expect(storeAfterMove.pendingMove?.to).toEqual({ x: 3, y: 0 });
 
-    // Confirm choice with callBrax = true
-    await useGameStore.getState().confirmBraxChoice(true);
+    // Confirm choice with callReCheckers = true
+    await useGameStore.getState().confirmReCheckersChoice(true);
 
-    const storeAfterBrax = useGameStore.getState();
-    expect(storeAfterBrax.turnPhase).toBe('AWAITING_SELECTION');
-    expect(storeAfterBrax.gameState?.activeBrax).not.toBeNull();
-    expect(storeAfterBrax.gameState?.activeBrax?.threatenedPieceIds).toContain('B1');
-    expect(storeAfterBrax.gameState?.turn).toBe('BLUE');
+    const storeAfterReCheckers = useGameStore.getState();
+    expect(storeAfterReCheckers.turnPhase).toBe('AWAITING_SELECTION');
+    expect(storeAfterReCheckers.gameState?.activeReCheckers).not.toBeNull();
+    expect(storeAfterReCheckers.gameState?.activeReCheckers?.threatenedPieceIds).toContain('B1');
+    expect(storeAfterReCheckers.gameState?.turn).toBe('BLUE');
   });
 
-  it('allows choosing normal move without Brax even when threat is created', async () => {
+  it('allows choosing normal move without ReCheckers even when threat is created', async () => {
     const testState = createEmptyTestState();
     testState.board['2,0'] = { id: 'R2', color: 'RED', side: 'PLAIN' };
     testState.board['0,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
@@ -144,14 +144,14 @@ describe('useGameStore (React Native Mobile State)', () => {
     await useGameStore.getState().selectPiece('R2');
     await useGameStore.getState().selectDestination({ x: 3, y: 0 });
 
-    expect(useGameStore.getState().turnPhase).toBe('PENDING_BRAX_CHOICE');
+    expect(useGameStore.getState().turnPhase).toBe('PENDING_RE_CHECKERS_CHOICE');
 
-    // Confirm choice with callBrax = false
-    await useGameStore.getState().confirmBraxChoice(false);
+    // Confirm choice with callReCheckers = false
+    await useGameStore.getState().confirmReCheckersChoice(false);
 
     const storeAfterNormal = useGameStore.getState();
     expect(storeAfterNormal.turnPhase).toBe('AWAITING_SELECTION');
-    expect(storeAfterNormal.gameState?.activeBrax).toBeNull();
+    expect(storeAfterNormal.gameState?.activeReCheckers).toBeNull();
     expect(storeAfterNormal.gameState?.board['3,0']?.id).toBe('R2');
   });
 

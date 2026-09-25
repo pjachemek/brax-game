@@ -1,5 +1,5 @@
 /**
- * Brax AI - Pacing.
+ * ReCheckers AI - Pacing.
  *
  * A bot that answers the instant a piece lands does not read as an opponent; it
  * reads as the board rejecting the move and redrawing itself. The eye needs a

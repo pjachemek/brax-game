@@ -1,11 +1,11 @@
 /**
- * Brax Rules Engine - In-Browser Test Suite Runner
+ * ReCheckers Rules Engine - In-Browser Test Suite Runner
  * Runs all validation and rule tests in the browser runtime without requiring Node/CLI.
  */
 
-import { BraxEngine } from './engine.ts';
+import { ReCheckersEngine } from './engine.ts';
 import { GameState, MoveAction, Piece } from './types.ts';
-import { CANONICAL_BRAX_BOARD } from './board.ts';
+import { CANONICAL_RE_CHECKERS_BOARD } from './board.ts';
 
 export interface TestResultItem {
   id: string;
@@ -38,8 +38,8 @@ function createEmptyTestState(): GameState {
     turn: 'RED',
     turnNumber: 1,
     capturedPieces: { RED: [], BLUE: [] },
-    activeBrax: null,
-    lastBraxCallTurn: { RED: null, BLUE: null },
+    activeReCheckers: null,
+    lastReCheckersCallTurn: { RED: null, BLUE: null },
     history: [],
     result: null,
     gameModeId: 'two_player',
@@ -48,7 +48,7 @@ function createEmptyTestState(): GameState {
 }
 
 export function runInBrowserTestSuite(): TestSuiteRunResult {
-  const engine = new BraxEngine(CANONICAL_BRAX_BOARD);
+  const engine = new ReCheckersEngine(CANONICAL_RE_CHECKERS_BOARD);
   const items: TestResultItem[] = [];
   const startSuite = performance.now();
 
@@ -115,7 +115,7 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
       state.board['1,0'] = { id: 'R1', color: 'RED', side: 'PLAIN' };
 
       // (1,0) to (2,0) horizontal edge is BLUE ((1+0)%2 === 1 -> BLUE)
-      // Moving 1 step along opponent's color is completely legal in Brax!
+      // Moving 1 step along opponent's color is completely legal in Re-Checkers!
       const move1Step: MoveAction = { pieceId: 'R1', to: { x: 2, y: 0 } };
       const res = engine.validateMove(state, move1Step);
       if (!res.valid) throw new Error(`Expected distance 1 move to be valid: ${res.reason}`);
@@ -245,50 +245,50 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
     'Verifies the exception to the jump prohibition: two enemies in a row along the player’s own colour are both taken by one distance 2 move.'
   );
 
-  // 5. Brax Call Enforcement
+  // 5. ReCheckers Call Enforcement
   test(
-    'call-brax-forcing',
-    'Brax Enforcement: Opponent Forced to Move Threatened Piece (Required by prompt)',
-    'Brax Mechanics',
+    'call-re-checkers-forcing',
+    'ReCheckers Enforcement: Opponent Forced to Move Threatened Piece (Required by prompt)',
+    'ReCheckers Mechanics',
     () => {
       const state = createEmptyTestState();
       state.board['2,0'] = { id: 'R2', color: 'RED', side: 'PLAIN' };
       state.board['3,1'] = { id: 'B1', color: 'BLUE', side: 'PLAIN' };
       state.board['7,7'] = { id: 'B2', color: 'BLUE', side: 'PLAIN' };
 
-      // R2 moves (2,0) -> (3,0) threatening B1 at (3,1) and calls Brax
-      const braxMove: MoveAction = {
+      // R2 moves (2,0) -> (3,0) threatening B1 at (3,1) and calls ReCheckers
+      const reCheckersMove: MoveAction = {
         pieceId: 'R2',
         to: { x: 3, y: 0 },
-        callBrax: true,
+        callReCheckers: true,
       };
 
-      const res = engine.validateMove(state, braxMove);
-      if (!res.valid) throw new Error(`Brax move failed validation: ${res.reason}`);
+      const res = engine.validateMove(state, reCheckersMove);
+      if (!res.valid) throw new Error(`ReCheckers move failed validation: ${res.reason}`);
 
-      const stateAfterBrax = engine.applyMove(state, braxMove);
-      if (!stateAfterBrax.activeBrax) throw new Error('activeBrax was not established in state');
+      const stateAfterReCheckers = engine.applyMove(state, reCheckersMove);
+      if (!stateAfterReCheckers.activeReCheckers) throw new Error('activeReCheckers was not established in state');
 
       // Unthreatened piece B2 must return empty valid moves
-      const b2Moves = engine.getValidMoves(stateAfterBrax, 'B2');
+      const b2Moves = engine.getValidMoves(stateAfterReCheckers, 'B2');
       if (b2Moves.length !== 0) {
         throw new Error(`Expected 0 valid moves for unthreatened B2, got ${b2Moves.length}`);
       }
 
       // Threatened piece B1 must have legal escape moves
-      const b1Moves = engine.getValidMoves(stateAfterBrax, 'B1');
+      const b1Moves = engine.getValidMoves(stateAfterReCheckers, 'B1');
       if (b1Moves.length === 0) {
         throw new Error('Expected threatened piece B1 to have legal moves to save itself');
       }
 
       // Moving B2 must be rejected by validator
       const illegalMove: MoveAction = { pieceId: 'B2', to: { x: 7, y: 8 } };
-      const illegalVal = engine.validateMove(stateAfterBrax, illegalMove);
+      const illegalVal = engine.validateMove(stateAfterReCheckers, illegalMove);
       if (illegalVal.valid) {
-        throw new Error('Opponent was illegally allowed to move an unthreatened piece after Brax!');
+        throw new Error('Opponent was illegally allowed to move an unthreatened piece after Re-Checkers!');
       }
     },
-    'Verifies that callBrax: true enforces the opponent to move only the threatened piece(s).'
+    'Verifies that callReCheckers: true enforces the opponent to move only the threatened piece(s).'
   );
 
   // 6. Capture at P2
@@ -354,10 +354,10 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
     'Verifies that single-step orthogonal moves correctly capture adjacent enemy pieces.'
   );
 
-  // 7. Endgame 2:1 Brax Expiration
+  // 7. Endgame 2:1 ReCheckers Expiration
   test(
-    'endgame-2v1-no-brax',
-    'Endgame Rule: Brax Disabled in 2:1 Piece Ratio',
+    'endgame-2v1-no-reCheckers',
+    'Endgame Rule: ReCheckers Disabled in 2:1 Piece Ratio',
     'Endgame & Scoring',
     () => {
       const state = createEmptyTestState();
@@ -365,18 +365,18 @@ export function runInBrowserTestSuite(): TestSuiteRunResult {
       state.board['7,0'] = { id: 'R2', color: 'RED', side: 'PLAIN' };
       state.board['1,1'] = { id: 'B1', color: 'BLUE', side: 'PLAIN' };
 
-      const moveWithBrax: MoveAction = {
+      const moveWithReCheckers: MoveAction = {
         pieceId: 'R1',
         to: { x: 0, y: 0 },
-        callBrax: true,
+        callReCheckers: true,
       };
 
-      const val = engine.validateMove(state, moveWithBrax);
+      const val = engine.validateMove(state, moveWithReCheckers);
       if (val.valid) {
-        throw new Error('Brax call should have been forbidden in 2:1 endgame ratio');
+        throw new Error('ReCheckers call should have been forbidden in 2:1 endgame ratio');
       }
     },
-    'Verifies that when pieces reach 2:1 ratio, Brax rights permanently expire for all players.'
+    'Verifies that when pieces reach 2:1 ratio, ReCheckers rights permanently expire for all players.'
   );
 
   // 8. State Immutability

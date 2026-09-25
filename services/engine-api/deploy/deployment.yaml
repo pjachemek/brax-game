@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: brax-engine
-  namespace: brax
+  name: re-checkers-engine
+  namespace: reCheckers
   labels:
-    app.kubernetes.io/name: brax-engine
+    app.kubernetes.io/name: re-checkers-engine
 spec:
   # Deliberately 1. Sessions live in the process (InMemoryGameSessionRepository),
   # so a second replica would serve games the first one has never heard of.
@@ -18,11 +18,11 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: brax-engine
+      app.kubernetes.io/name: re-checkers-engine
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: brax-engine
+        app.kubernetes.io/name: re-checkers-engine
     spec:
       securityContext:
         runAsNonRoot: true
@@ -30,7 +30,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: engine
-          image: ghcr.io/OWNER/brax-engine:latest
+          image: ghcr.io/OWNER/re-checkers-engine:latest
           imagePullPolicy: IfNotPresent
           ports:
             # The end of the chain: service.yaml's `targetPort: http` resolves
@@ -44,7 +44,7 @@ spec:
               value: "4000"
           envFrom:
             - configMapRef:
-                name: brax-engine-config
+                name: re-checkers-engine-config
           resources:
             requests:
               cpu: 50m

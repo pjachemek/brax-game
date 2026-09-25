@@ -1,5 +1,5 @@
 /**
- * Brax Engine Service - Process entrypoint.
+ * ReCheckers Engine Service - Process entrypoint.
  *
  * Configuration is environment-only so the same image runs anywhere:
  *   PORT              listening port (default 4000)
@@ -8,7 +8,7 @@
  *   MAX_SESSIONS      retained session cap (default 5000)
  */
 
-import { GameSessionManager, InMemoryGameSessionRepository } from '@brax/engine';
+import { GameSessionManager, InMemoryGameSessionRepository } from '@re-checkers/engine';
 import { createApp } from './app.ts';
 
 const port = Number(process.env.PORT ?? 4000);
@@ -26,13 +26,13 @@ const manager = new GameSessionManager({
 const app = createApp({ manager, allowedOrigins });
 
 const server = app.listen(port, () => {
-  console.log(`[brax-engine] listening on http://localhost:${port}`);
-  console.log(`[brax-engine] modes: ${manager.listModes().map((m) => m.id).join(', ')}`);
+  console.log(`[re-checkers-engine] listening on http://localhost:${port}`);
+  console.log(`[re-checkers-engine] modes: ${manager.listModes().map((m) => m.id).join(', ')}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    console.log(`[brax-engine] ${signal} received, shutting down`);
+    console.log(`[re-checkers-engine] ${signal} received, shutting down`);
     server.close(() => process.exit(0));
   });
 }

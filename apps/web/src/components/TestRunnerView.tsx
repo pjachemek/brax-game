@@ -1,10 +1,10 @@
 /**
- * Brax Rules Engine - Interactive Test Runner Component
+ * ReCheckers Rules Engine - Interactive Test Runner Component
  * Allows developers and evaluators to run and visually inspect all engine tests in real-time.
  */
 
 import React, { useState, useEffect } from 'react';
-import { runInBrowserTestSuite, type TestSuiteRunResult } from '@brax/engine';
+import { runInBrowserTestSuite, type TestSuiteRunResult } from '@re-checkers/engine';
 import { CheckCircle2, XCircle, Play, RefreshCw, Terminal, Clock, ShieldCheck } from 'lucide-react';
 
 export const TestRunnerView: React.FC = () => {
@@ -46,7 +46,7 @@ export const TestRunnerView: React.FC = () => {
             <h2 className="text-lg font-bold text-slate-800">Pakiet Testów Jednostkowych Silnika (Vitest / CLI)</h2>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Weryfikacja reguł F.B. Denhama, zakazu przeskakiwania, przymusu Brax i bicia na P2.
+            Weryfikacja reguł F.B. Denhama, zakazu przeskakiwania, przymusu ReCheckers i bicia na P2.
           </p>
         </div>
 
